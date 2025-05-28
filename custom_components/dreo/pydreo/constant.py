@@ -1,5 +1,9 @@
 """Constants for the PyDreo library."""
-from enum import Enum, IntEnum, StrEnum
+from enum import Enum, IntEnum
+try:
+    from enum import StrEnum
+except ImportError:
+    from strenum import StrEnum # Fallback for Python < 3.11
 
 LOGGER_NAME = "pydreo"
 
@@ -44,6 +48,11 @@ TEMPOFFSET_KEY = "tempoffset"
 HUMIDITY_KEY = "rh"
 TARGET_AUTO_HUMIDITY_KEY = "rhautolevel"
 TARGET_HUMIDITY_KEY = "rhlevel"
+
+# Light specific keys (for ceiling fans with lights)
+BRIGHTNESS_KEY = "brightness"
+COLOR_TEMP_KEY = "colortemp" # Assuming this is the key for color temperature
+RGB_COLOR_KEY = "rgbcolor"   # Assuming this is the key for RGB color
 
 # Preferences Names
 # It's possible we should switch to IDs instead of names

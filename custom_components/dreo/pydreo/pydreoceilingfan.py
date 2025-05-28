@@ -9,27 +9,12 @@ from .constant import (
     LIGHTON_KEY,
     WINDLEVEL_KEY,
     SPEED_RANGE,
-    # TODO: Move these placeholder keys to constant.py if they are actual Dreo API keys
-    BRIGHTNESS_KEY,
-    COLOR_TEMP_KEY,
-    RGB_COLOR_KEY,
+    BRIGHTNESS_KEY, # Now officially defined in constant.py
+    COLOR_TEMP_KEY, # Now officially defined in constant.py
+    RGB_COLOR_KEY,   # Now officially defined in constant.py
 )
 
 from .pydreofanbase import PyDreoFanBase
-
-# Placeholder definitions for keys not found in constant.py
-# These should be verified and moved to constant.py if they are actual Dreo API keys.
-# For now, we define them here to proceed with development.
-_LOGGER_PLACEHOLDER = logging.getLogger(LOGGER_NAME)
-
-try:
-    # Attempt to import, if they were added to constant.py in the meantime
-    from .constant import BRIGHTNESS_KEY, COLOR_TEMP_KEY, RGB_COLOR_KEY
-except ImportError:
-    _LOGGER_PLACEHOLDER.warning("BRIGHTNESS_KEY, COLOR_TEMP_KEY, RGB_COLOR_KEY not found in constant.py. Using placeholder values. Please update constant.py if these are actual API keys.")
-    BRIGHTNESS_KEY = "brightness"
-    COLOR_TEMP_KEY = "colortemp"
-    RGB_COLOR_KEY = "rgbcolor"
 from .models import DreoDeviceDetails
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
