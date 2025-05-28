@@ -62,7 +62,7 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         super().__init__(pydreo_device)
         self.pydreo_device: PyDreoCeilingFan = pydreo_device # For type hinting
         self._attr_name = f"{self.pydreo_device.name} Light"
-        self._attr_unique_id = f"{self.pydreo_device.unique_id}-light"
+        self._attr_unique_id = f"{self.pydreo_device.device_id}-light" # Changed from unique_id to device_id
         _LOGGER.info(f"Initializing DreoLightHA: {self._attr_name} (Unique ID: {self._attr_unique_id})")
 
 

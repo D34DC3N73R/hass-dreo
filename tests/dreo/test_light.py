@@ -24,7 +24,7 @@ from custom_components.dreo.pydreo import PyDreoCeilingFan, DreoDeviceType
 def create_mock_ceiling_fan(
     name="Test DR-HCF Fan",
     model="DR-HCF001S", # Example DR-HCF model
-    unique_id="test_unique_id_hcf001s",
+    device_id="test_device_id_hcf001s", # Changed from unique_id
     device_type=DreoDeviceType.CEILING_FAN,
     supports_brightness=True,
     supports_color_temp=True,
@@ -37,7 +37,7 @@ def create_mock_ceiling_fan(
     mock_device = MagicMock(spec=PyDreoCeilingFan)
     mock_device.name = name
     mock_device.model = model
-    mock_device.unique_id = unique_id
+    mock_device.device_id = device_id # Changed from unique_id
     mock_device.type = device_type # Used in __init__.py logic
 
     # Use PropertyMock for attributes that are read and have setters
@@ -139,13 +139,14 @@ class TestDreoLight(unittest.IsolatedAsyncioTestCase):
         light_entity = added_entities[0]
         
         self.assertIsInstance(light_entity, DreoLightHA)
-        self.assertEqual(light_entity.unique_id, f"{mock_drhcf_fan.unique_id}-light")
+        self.assertEqual(light_entity.unique_id, f"{mock_drhcf_fan.device_id}-light") # Changed from unique_id
         self.assertEqual(light_entity.name, f"{mock_drhcf_fan.name} Light")
         self.assertEqual(light_entity.device_info["model"], mock_drhcf_fan.model)
 
     async def test_light_not_created_for_non_dr_hcf_model(self):
         """Test light entity is NOT created for non-DR-HCF fan models."""
-        mock_non_drhcf_fan = create_mock_ceiling_fan(model="DR-CFXXX") # Non-DR-HCF
+        # Ensure device_id is distinct if it matters for other logic, or use default.
+        mock_non_drhcf_fan = create_mock_ceiling_fan(model="DR-CFXXX", device_id="test_device_id_cfxxx") # Non-DR-HCF
         self.mock_pydreo_manager.devices = [mock_non_drhcf_fan]
         
         mock_add_entities = AsyncMock(spec=AddEntitiesCallback)
