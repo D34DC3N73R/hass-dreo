@@ -83,11 +83,93 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
 
 
     @property
+    def min_color_temp_kelvin(self) -> int | None:
+        """Return the minimum Kelvin value for color temperature."""
+        return self.pydreo_device.min_kelvin
+
+    @property
+    def max_color_temp_kelvin(self) -> int | None:
+        """Return the maximum Kelvin value for color temperature."""
+        return self.pydreo_device.max_kelvin
+
+    def _kelvin_to_device_range(self, kelvin_value: int) -> int | None:
+        """Convert Kelvin to device's native color temperature range."""
+        if not all([
+            self.pydreo_device.min_kelvin is not None,
+            self.pydreo_device.max_kelvin is not None,
+            self.pydreo_device.device_color_temp_range_min is not None,
+            self.pydreo_device.device_color_temp_range_max is not None,
+        ]):
+            _LOGGER.debug(f"{self.name}: Color temp range attributes not fully defined on pydreo_device.")
+            return None
+        
+        # Avoid division by zero if Kelvin range is invalid (min == max)
+        if self.pydreo_device.min_kelvin == self.pydreo_device.max_kelvin:
+            if kelvin_value == self.pydreo_device.min_kelvin: # If single value, it must match
+                 # Return the middle of the device range, or min, if single point mapping
+                return (self.pydreo_device.device_color_temp_range_min + self.pydreo_device.device_color_temp_range_max) // 2
+            _LOGGER.debug(f"{self.name}: Kelvin range is zero (min_kelvin == max_kelvin). Cannot map.")
+            return None
+
+
+        k_min = self.pydreo_device.min_kelvin
+        k_max = self.pydreo_device.max_kelvin
+        d_min = self.pydreo_device.device_color_temp_range_min
+        d_max = self.pydreo_device.device_color_temp_range_max
+
+        clamped_k = max(k_min, min(kelvin_value, k_max))
+        percentage = (clamped_k - k_min) / (k_max - k_min)
+        device_value = d_min + percentage * (d_max - d_min)
+        
+        return round(max(d_min, min(device_value, d_max)))
+
+    def _device_range_to_kelvin(self, device_value: int) -> int | None:
+        """Convert device's native color temperature value to Kelvin."""
+        if not all([
+            self.pydreo_device.min_kelvin is not None,
+            self.pydreo_device.max_kelvin is not None,
+            self.pydreo_device.device_color_temp_range_min is not None,
+            self.pydreo_device.device_color_temp_range_max is not None,
+        ]):
+            _LOGGER.debug(f"{self.name}: Color temp range attributes not fully defined on pydreo_device for reverse mapping.")
+            return None
+
+        # Avoid division by zero if device range is invalid (min == max)
+        if self.pydreo_device.device_color_temp_range_min == self.pydreo_device.device_color_temp_range_max:
+            if device_value == self.pydreo_device.device_color_temp_range_min: # If single value, it must match
+                # Return the middle of the Kelvin range, or min, if single point mapping
+                return (self.pydreo_device.min_kelvin + self.pydreo_device.max_kelvin) // 2
+            _LOGGER.debug(f"{self.name}: Device color temp range is zero. Cannot map to Kelvin.")
+            return None
+
+        k_min = self.pydreo_device.min_kelvin
+        k_max = self.pydreo_device.max_kelvin
+        d_min = self.pydreo_device.device_color_temp_range_min
+        d_max = self.pydreo_device.device_color_temp_range_max
+
+        clamped_d = max(d_min, min(device_value, d_max))
+        percentage = (clamped_d - d_min) / (d_max - d_min)
+        kelvin_value = k_min + percentage * (k_max - k_min)
+        
+        return round(max(k_min, min(kelvin_value, k_max)))
+
+    @property
     def color_temp(self) -> int | None:
         """Return the color temperature in Kelvin."""
-        # Assuming self.pydreo_device.color_temp is already in Kelvin
-        return self.pydreo_device.color_temp
-
+        device_native_value = self.pydreo_device.color_temp
+        if device_native_value is None or not self.pydreo_device.supports_color_temp:
+            return None
+        
+        kelvin_value = self._device_range_to_kelvin(device_native_value)
+        if kelvin_value is None:
+            _LOGGER.warning(
+                f"{self.name}: Could not map device color temp value '{device_native_value}' to Kelvin. "
+                f"Device range: {self.pydreo_device.device_color_temp_range_min}-"
+                f"{self.pydreo_device.device_color_temp_range_max}, "
+                f"Kelvin range: {self.pydreo_device.min_kelvin}-{self.pydreo_device.max_kelvin}"
+            )
+        return kelvin_value
+        
     @property
     def hs_color(self) -> tuple[float, float] | None:
         """Return the hs color value."""
@@ -97,27 +179,22 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         return color_RGB_to_hs(*self.pydreo_device.rgb_color)
 
     @property
-    def supported_color_modes(self) -> set[ColorMode]:
-        """Flag supported color modes."""
-        modes = {ColorMode.ONOFF}
-        # Assuming device capabilities are somewhat dynamic or need checking.
-        # For now, let's assume if the properties exist on PyDreoCeilingFan, they are supported.
-        # A more robust way would be to check device.is_feature_supported() if that exists for these.
-        if hasattr(self.pydreo_device, 'brightness'):
+    def supported_color_modes(self) -> set[ColorMode] | None:
+        """Flag supported color modes based on device capabilities."""
+        modes = set()
+        if self.pydreo_device.supports_brightness:
             modes.add(ColorMode.BRIGHTNESS)
-        if hasattr(self.pydreo_device, 'color_temp'):
+        if self.pydreo_device.supports_color_temp:
             modes.add(ColorMode.COLOR_TEMP)
-        if hasattr(self.pydreo_device, 'rgb_color'):
-            modes.add(ColorMode.HS) # HS is preferred for RGB by HA
+        if self.pydreo_device.supports_rgb:
+            modes.add(ColorMode.HS)
         
-        # If only BRIGHTNESS is supported (and not COLOR_TEMP or HS), 
-        # some lights default to BRIGHTNESS mode when ON, others to ONOFF.
-        # If it has BRIGHTNESS but not COLOR_TEMP or HS, it's BRIGHTNESS mode.
-        # If it has COLOR_TEMP or HS, those are more specific.
-        # This logic is primarily for `color_mode` property.
-        # For `supported_color_modes`, listing all potentially available modes is fine.
-
-        _LOGGER.debug(f"Device {self.name} supported_color_modes: {modes}")
+        # If no specific color modes are supported, it's an ONOFF light.
+        # Otherwise, ONOFF is implied by HA if other modes are present.
+        if not modes:
+            return {ColorMode.ONOFF}
+        
+        _LOGGER.debug(f"Device {self.name} calculated supported_color_modes: {modes}")
         return modes
 
     @property
@@ -168,11 +245,16 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
             # if self.pydreo_device.color_temp is not None: self.pydreo_device.color_temp = None
 
         elif ATTR_COLOR_TEMP_KELVIN in kwargs and ColorMode.COLOR_TEMP in self.supported_color_modes:
-            color_temp_kelvin = kwargs[ATTR_COLOR_TEMP_KELVIN]
-            _LOGGER.debug(f"Setting color temp for {self.name} to {color_temp_kelvin}K")
-            self.pydreo_device.color_temp = color_temp_kelvin
-            # Setting color_temp might clear rgb_color on some devices
-            # if self.pydreo_device.rgb_color is not None: self.pydreo_device.rgb_color = None
+            kelvin_value = kwargs[ATTR_COLOR_TEMP_KELVIN]
+            device_value = self._kelvin_to_device_range(kelvin_value)
+            if device_value is not None:
+                _LOGGER.debug(f"Setting color temp for {self.name} to {kelvin_value}K -> Device value {device_value}")
+                self.pydreo_device.color_temp = device_value
+                # Clear RGB if device doesn't support simultaneous CCT and RGB
+                if self.pydreo_device.supports_rgb and not getattr(self.pydreo_device, 'supports_simultaneous_rgb_ct', False):
+                    self.pydreo_device.rgb_color = None 
+            else:
+                _LOGGER.warning(f"Could not map Kelvin value {kelvin_value} to device range for {self.name}")
         
         # Brightness can be set in conjunction with color or independently
         if ATTR_BRIGHTNESS in kwargs and ColorMode.BRIGHTNESS in self.supported_color_modes:

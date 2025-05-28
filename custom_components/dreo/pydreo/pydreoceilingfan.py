@@ -49,7 +49,49 @@ class PyDreoCeilingFan(PyDreoFanBase):
         self._wind_mode = None
 
         self._device_definition = device_definition
-    
+
+        # Initialize light capability attributes
+        self.supports_brightness: bool = False
+        self.supports_color_temp: bool = False
+        self.supports_rgb: bool = False  # Assume False unless explicitly found
+        self.min_kelvin: int | None = None
+        self.max_kelvin: int | None = None
+        self.device_color_temp_range_min: int | None = None
+        self.device_color_temp_range_max: int | None = None
+
+        # Parse controlsConf for light capabilities
+        controls_conf = details.get("controlsConf", {})
+        if isinstance(controls_conf, dict): # Ensure controls_conf is a dictionary
+            control_items = controls_conf.get("control", [])
+            if isinstance(control_items, list): # Ensure control_items is a list
+                for item in control_items:
+                    if isinstance(item, dict) and item.get("type") == "CFLight": # Ensure item is a dictionary
+                        cflight_items = item.get("items", [])
+                        if isinstance(cflight_items, list): # Ensure cflight_items is a list
+                            for inner_item in cflight_items:
+                                if isinstance(inner_item, dict): # Ensure inner_item is a dictionary
+                                    inner_item_type = inner_item.get("type")
+                                    if inner_item_type == "light":
+                                        self.supports_brightness = True
+                                    elif inner_item_type == "color":
+                                        self.supports_color_temp = True
+                                        self.device_color_temp_range_min = inner_item.get("minValue", 0)
+                                        self.device_color_temp_range_max = inner_item.get("maxValue", 100)
+                                        # Fixed Kelvin range mapping for DR-HCF003S (0-100)
+                                        # This might need to be model-specific if other models differ.
+                                        self.min_kelvin = 2700
+                                        self.max_kelvin = 6500
+                                    elif inner_item_type == "rgb": # Placeholder for actual RGB key
+                                        self.supports_rgb = True
+                        break # Found CFLight, no need to check other top-level control items
+
+        _LOGGER.debug(
+            f"{self.name}: Light capabilities: Brightness={self.supports_brightness}, "
+            f"ColorTemp={self.supports_color_temp} (DeviceRange: {self.device_color_temp_range_min}-"
+            f"{self.device_color_temp_range_max}, Kelvin: {self.min_kelvin}-{self.max_kelvin}), "
+            f"RGB={self.supports_rgb}"
+        )
+
     def parse_preset_modes(self, details: Dict[str, list]) -> tuple[str, int]:
         """Parse the preset modes from the details."""
         preset_modes = []
