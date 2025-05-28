@@ -113,12 +113,29 @@ def get_entries(pydreo_devices : list[PyDreoBaseDevice]) -> list[DreoSwitchHA]:
             _LOGGER.debug("Switch:get_entries: checking attribute: %s on %s", switch_definition.attr_name, pydreo_device.name)
 
             if pydreo_device.is_feature_supported(switch_definition.attr_name):
+                # Check if this is the light switch for a DR-HCF ceiling fan
+                if (switch_definition.attr_name == "light_on" and
+                        hasattr(pydreo_device, 'type') and 
+                        pydreo_device.type == DreoDeviceType.CEILING_FAN and
+                        pydreo_device.model and
+                        pydreo_device.model.startswith("DR-HCF")):
+                    _LOGGER.debug(f"Skipping 'light_on' switch for DR-HCF model {pydreo_device.name} (Model: {pydreo_device.model}) as it will be a dedicated light entity.")
+                    continue  # Skip creating this switch
+
                 if (switch_definition.key in switch_keys):
-                    _LOGGER.error("Switch:get_entries: Duplicate switch key %s", switch_definition.key)
+                    # This check for duplicates should ideally be based on a more unique identifier
+                    # if multiple switch_definitions can have the same key but different attr_name.
+                    # However, given the current structure, we'll keep it as is.
+                    # A potential issue if, for example, one device supports 'ledpotkepton' and another 'light_on'
+                    # both mapping to key "Light". The first one encountered would be added.
+                    # For DR-HCF, we've already skipped "light_on", so "ledpotkepton" (if supported) would still be checked.
+                    _LOGGER.warning("Switch:get_entries: Duplicate switch key '%s' for device '%s'. Skipping add for attr_name '%s'. Existing switch uses attr_name for this key: %s", 
+                                   switch_definition.key, pydreo_device.name, switch_definition.attr_name, 
+                                   next((s.entity_description.attr_name for s in switch_ha_collection if s.entity_description.key == switch_definition.key and s.pydreo_device == pydreo_device), "unknown"))
                     continue
                 
-                _LOGGER.debug("Switch:get_entries: Adding switch %s", switch_definition.key)
-                switch_keys.append(switch_definition.key)
+                _LOGGER.debug("Switch:get_entries: Adding switch %s (attr: %s) for %s", switch_definition.key, switch_definition.attr_name, pydreo_device.name)
+                switch_keys.append(switch_definition.key) # This list helps avoid duplicate entity_description.key for the *same device*
                 switch_ha_collection.append(DreoSwitchHA(pydreo_device, switch_definition))
 
     return switch_ha_collection

@@ -9,9 +9,27 @@ from .constant import (
     LIGHTON_KEY,
     WINDLEVEL_KEY,
     SPEED_RANGE,
+    # TODO: Move these placeholder keys to constant.py if they are actual Dreo API keys
+    BRIGHTNESS_KEY,
+    COLOR_TEMP_KEY,
+    RGB_COLOR_KEY,
 )
 
 from .pydreofanbase import PyDreoFanBase
+
+# Placeholder definitions for keys not found in constant.py
+# These should be verified and moved to constant.py if they are actual Dreo API keys.
+# For now, we define them here to proceed with development.
+_LOGGER_PLACEHOLDER = logging.getLogger(LOGGER_NAME)
+
+try:
+    # Attempt to import, if they were added to constant.py in the meantime
+    from .constant import BRIGHTNESS_KEY, COLOR_TEMP_KEY, RGB_COLOR_KEY
+except ImportError:
+    _LOGGER_PLACEHOLDER.warning("BRIGHTNESS_KEY, COLOR_TEMP_KEY, RGB_COLOR_KEY not found in constant.py. Using placeholder values. Please update constant.py if these are actual API keys.")
+    BRIGHTNESS_KEY = "brightness"
+    COLOR_TEMP_KEY = "colortemp"
+    RGB_COLOR_KEY = "rgbcolor"
 from .models import DreoDeviceDetails
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
@@ -38,6 +56,9 @@ class PyDreoCeilingFan(PyDreoFanBase):
 
         self._fan_speed = None
         self._light_on = None
+        self._brightness = None
+        self._color_temp = None
+        self._rgb_color = None
 
         self._wind_type = None
         self._wind_mode = None
@@ -89,6 +110,45 @@ class PyDreoCeilingFan(PyDreoFanBase):
     @oscillating.setter
     def oscillating(self, value: bool) -> None:
         raise NotImplementedError(f"Attempting to set oscillating on a device that doesn't support ({value})")
+
+    @property
+    def brightness(self) -> int | None:
+        """Return the brightness of the light."""
+        return self._brightness
+
+    @brightness.setter
+    def brightness(self, value: int):
+        """Set the brightness of the light."""
+        _LOGGER.debug("PyDreoCeilingFan:brightness.setter - %s", value)
+        self._send_command(BRIGHTNESS_KEY, value)
+        # Assuming command is successful, update local state. 
+        # Alternatively, wait for handle_server_update or update_state
+        self._brightness = value
+
+
+    @property
+    def color_temp(self) -> int | None:
+        """Return the color temperature of the light."""
+        return self._color_temp
+
+    @color_temp.setter
+    def color_temp(self, value: int):
+        """Set the color temperature of the light."""
+        _LOGGER.debug("PyDreoCeilingFan:color_temp.setter - %s", value)
+        self._send_command(COLOR_TEMP_KEY, value)
+        self._color_temp = value
+
+    @property
+    def rgb_color(self) -> tuple[int, int, int] | None:
+        """Return the RGB color of the light."""
+        return self._rgb_color
+
+    @rgb_color.setter
+    def rgb_color(self, value: tuple[int, int, int]):
+        """Set the RGB color of the light."""
+        _LOGGER.debug("PyDreoCeilingFan:rgb_color.setter - %s", value)
+        self._send_command(RGB_COLOR_KEY, value)
+        self._rgb_color = value
     
     def update_state(self, state: dict):
         """Process the state dictionary from the REST API."""
@@ -101,6 +161,10 @@ class PyDreoCeilingFan(PyDreoFanBase):
 
         self._is_on = self.get_state_update_value(state, FANON_KEY)
         self._light_on = self.get_state_update_value(state, LIGHTON_KEY)
+        self._brightness = self.get_state_update_value(state, BRIGHTNESS_KEY)
+        self._color_temp = self.get_state_update_value(state, COLOR_TEMP_KEY)
+        self._rgb_color = self.get_state_update_value(state, RGB_COLOR_KEY)
+
 
     def handle_server_update(self, message):
         """Process a websocket update"""
@@ -113,4 +177,17 @@ class PyDreoCeilingFan(PyDreoFanBase):
 
         val_light_on = self.get_server_update_key_value(message, LIGHTON_KEY)
         if isinstance(val_light_on, bool):
-            self._light_on = val_light_on            
+            self._light_on = val_light_on
+        
+        val_brightness = self.get_server_update_key_value(message, BRIGHTNESS_KEY)
+        if isinstance(val_brightness, int):
+            self._brightness = val_brightness
+        
+        val_color_temp = self.get_server_update_key_value(message, COLOR_TEMP_KEY)
+        if isinstance(val_color_temp, int):
+            self._color_temp = val_color_temp
+
+        val_rgb_color = self.get_server_update_key_value(message, RGB_COLOR_KEY)
+        if isinstance(val_rgb_color, (list, tuple)) and len(val_rgb_color) == 3:
+            # Ensure it's stored as a tuple
+            self._rgb_color = tuple(val_rgb_color)

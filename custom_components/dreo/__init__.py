@@ -64,45 +64,57 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         return False
 
     _LOGGER.debug("Checking for supported installed device types")
-    device_types = set()
+    device_types_present = set()
+    has_dr_hcf_ceiling_fan = False
+
     for device in pydreo_manager.devices:
-        device_types.add(device.type)   
-    _LOGGER.debug("Device types found are: %s", device_types)
+        device_types_present.add(device.type)
+        if device.type == DreoDeviceType.CEILING_FAN and device.model and device.model.startswith("DR-HCF"):
+            has_dr_hcf_ceiling_fan = True
+            _LOGGER.info(f"Found DR-HCF Ceiling Fan: {device.name} (Model: {device.model})")
+
+    _LOGGER.debug("Device types found are: %s", device_types_present)
     _LOGGER.info("%d Dreo devices found", len(pydreo_manager.devices))
 
     platforms = set()
-    if (DreoDeviceType.TOWER_FAN in device_types or 
-        DreoDeviceType.AIR_CIRCULATOR in device_types or
-        DreoDeviceType.AIR_PURIFIER in device_types or
-        DreoDeviceType.CEILING_FAN in device_types):
+
+    # Logic for FAN, SENSOR, SWITCH, NUMBER based on device types
+    # Platform.SWITCH will be loaded if any of these fan types are present.
+    # Filtering of specific switch entities (e.g. not creating a light switch for DR-HCF)
+    # will be handled in switch.py.
+    if (DreoDeviceType.TOWER_FAN in device_types_present or
+            DreoDeviceType.AIR_CIRCULATOR in device_types_present or
+            DreoDeviceType.AIR_PURIFIER in device_types_present or
+            DreoDeviceType.CEILING_FAN in device_types_present or # Covers all ceiling fans for FAN, SENSOR, SWITCH, NUMBER
+            DreoDeviceType.EVAPORATIVE_COOLER in device_types_present):
         platforms.add(Platform.FAN)
         platforms.add(Platform.SENSOR)
         platforms.add(Platform.SWITCH)
         platforms.add(Platform.NUMBER)
 
-    if (DreoDeviceType.HEATER in device_types or 
-        DreoDeviceType.AIR_CONDITIONER in device_types):
+    if (DreoDeviceType.HEATER in device_types_present or
+            DreoDeviceType.AIR_CONDITIONER in device_types_present):
         platforms.add(Platform.CLIMATE)
+        # Add common platforms if not already added by fan logic
         platforms.add(Platform.SENSOR)
         platforms.add(Platform.SWITCH)
         platforms.add(Platform.NUMBER)
 
-    if (DreoDeviceType.HUMIDIFIER in device_types):
+    if (DreoDeviceType.HUMIDIFIER in device_types_present):
         platforms.add(Platform.HUMIDIFIER)
         platforms.add(Platform.SENSOR)
         platforms.add(Platform.SWITCH)
         platforms.add(Platform.NUMBER)
 
-    if (DreoDeviceType.CHEF_MAKER in device_types):
+    if (DreoDeviceType.CHEF_MAKER in device_types_present):
         platforms.add(Platform.SENSOR)
         platforms.add(Platform.SWITCH)
         platforms.add(Platform.NUMBER)
 
-    if (DreoDeviceType.EVAPORATIVE_COOLER in device_types):
-        platforms.add(Platform.FAN)
-        platforms.add(Platform.SENSOR)
-        platforms.add(Platform.SWITCH)
-        platforms.add(Platform.NUMBER)
+    # Conditionally add Platform.LIGHT for DR-HCF ceiling fans
+    if has_dr_hcf_ceiling_fan:
+        platforms.add(Platform.LIGHT)
+        _LOGGER.info("DR-HCF ceiling fan model detected, adding Light platform.")
 
     pydreo_manager.start_transport()
 
