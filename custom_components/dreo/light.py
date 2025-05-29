@@ -14,6 +14,7 @@ from homeassistant.components.light import (
     ATTR_RGB_COLOR, # HS is preferred by HA frontend, but RGB might be used by device
     ColorMode,
     LightEntity, # Already imported via wildcard, but good for explicitness
+    LightEntityFeature, # Added for supported_features logging
 )
 from homeassistant.util.color import color_RGB_to_hs, color_hs_to_RGB
 
@@ -63,7 +64,24 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         self.pydreo_device: PyDreoCeilingFan = pydreo_device # For type hinting
         self._attr_name = f"{self.pydreo_device.name} Light"
         self._attr_unique_id = f"{self.pydreo_device.device_id}-light" # Changed from unique_id to device_id
-        _LOGGER.info(f"Initializing DreoLightHA: {self._attr_name} (Unique ID: {self._attr_unique_id})")
+        
+        # Determine supported features based on color modes
+        current_color_modes = self.supported_color_modes 
+        
+        _LOGGER.debug(f"Device {self.name} [DreoLightHA.__init__]: Initializing with supported_color_modes: {current_color_modes}")
+
+        if current_color_modes and current_color_modes != {ColorMode.ONOFF}:
+            self._attr_supported_features = LightEntityFeature.SUPPORT_BRIGHTNESS
+            # In the future, if effects or other features are added:
+            # if ColorMode.EFFECT in current_color_modes: # Assuming EFFECT is a ColorMode
+            # self._attr_supported_features |= LightEntityFeature.SUPPORT_EFFECT 
+        else:
+            self._attr_supported_features = LightEntityFeature(0)
+        
+        _LOGGER.info(
+            f"Initializing DreoLightHA: {self._attr_name} (Unique ID: {self._attr_unique_id}) "
+            f"Supported Color Modes: {current_color_modes}, Supported Features: {self._attr_supported_features}"
+        )
 
 
     @property
@@ -224,14 +242,19 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
             return ColorMode.ONOFF # Or None, HA seems to handle this
 
         # Check most specific modes first
-        if self.pydreo_device.rgb_color is not None and ColorMode.HS in self.supported_color_modes:
+        # Ensure self.supported_color_modes is not None before checking membership
+        supported_modes = self.supported_color_modes
+        if supported_modes is None: # Should not happen if __init__ logic is correct
+            return ColorMode.ONOFF
+
+        if self.pydreo_device.rgb_color is not None and ColorMode.HS in supported_modes:
             return ColorMode.HS
-        if self.pydreo_device.color_temp is not None and ColorMode.COLOR_TEMP in self.supported_color_modes:
+        if self.pydreo_device.color_temp is not None and ColorMode.COLOR_TEMP in supported_modes:
             return ColorMode.COLOR_TEMP
-        if self.pydreo_device.brightness is not None and ColorMode.BRIGHTNESS in self.supported_color_modes:
+        if self.pydreo_device.brightness is not None and ColorMode.BRIGHTNESS in supported_modes:
             # If only brightness is supported beyond on/off, then it's BRIGHTNESS mode.
             # If HS or COLOR_TEMP are also supported but not active, it might still be BRIGHTNESS.
-             if ColorMode.HS not in self.supported_color_modes and ColorMode.COLOR_TEMP not in self.supported_color_modes:
+             if ColorMode.HS not in supported_modes and ColorMode.COLOR_TEMP not in supported_modes:
                 return ColorMode.BRIGHTNESS
              # If HS/ColorTemp are supported but not set, and brightness is set, it implies BRIGHTNESS mode.
              # This can happen if a light was in HS/ColorTemp mode, then just brightness was adjusted.
@@ -243,6 +266,9 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
 
 
         return ColorMode.ONOFF # Default if no other mode is active or determined
+
+    # The temporary supported_features property with logging has been removed.
+    # _attr_supported_features is now set in __init__.
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on."""

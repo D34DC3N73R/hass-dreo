@@ -459,4 +459,4 @@ class PyDreo:  # pylint: disable=function-redefined
         # Assuming self._transport.send_message will be made async or a new
         # async_send_message method will be available on the transport.
         # The subtask for CommandTransport.send_message implies it will become async.
-        await self._transport.send_message(method=payload["method"], params=payload["params"], devicesn=payload["devicesn"])
+        await self._transport.send_message(json.dumps(payload))

@@ -165,27 +165,44 @@ class CommandTransport:
     def _ws_consume_message(self, message):
         self._recv_callback(message)
 
-    def send_message(self, content: dict):
+    async def send_message(self, content: str): # Changed to async def, content is str
         """Send a command to Dreo servers via the WebSocket."""
         if not self._transport_enabled:
             _LOGGER.error("Command transport disabled. Run start_transport first.")
+            # Consider if RuntimeError should still be raised or if async nature changes this
             raise RuntimeError("Command transport disabled. Run start_transport first.")
         
-        async def send_internal() -> None:
-            MAX_RETRY_COUNT = 3
-            RETRY_DELAY = 5
-            retry_count = 0
-            while retry_count < MAX_RETRY_COUNT:
-                try:
-                    with self._ws_send_lock: 
-                        await self._ws.send(content)
-                    break
-                except: # pylint: disable=bare-except
-                    retry_count += 1
-                    _LOGGER.error("Error sending command. Retrying in %s seconds. Retry count: %s", 
-                                  RETRY_DELAY, 
-                                  retry_count)
-                    await asyncio.sleep(RETRY_DELAY)
+        MAX_RETRY_COUNT = 3
+        RETRY_DELAY = 5 # seconds
+        retry_count = 0
+        while retry_count < MAX_RETRY_COUNT:
+            if self._ws is None or not self._ws.open:
+                _LOGGER.warning("WebSocket is not open or available. Retrying in %s seconds.", RETRY_DELAY)
+                await asyncio.sleep(RETRY_DELAY)
+                retry_count += 1
+                continue # Retry to connect or wait for ws to be available
 
-        asyncio.run(send_internal())
+            try:
+                # self._ws_send_lock is a threading.Lock, which is not async-friendly.
+                # An asyncio.Lock should be used if locking is critical around await.
+                # For now, direct send, assuming websockets library or usage pattern handles serialization.
+                # If issues (e.g., partial messages) arise, this needs an asyncio.Lock.
+                # with self._ws_send_lock: # This would need to be an asyncio.Lock
+                await self._ws.send(content)
+                _LOGGER.debug("CommandTransport: Successfully sent message via WebSocket.")
+                break # Exit loop if send is successful
+            except websockets.exceptions.ConnectionClosed:
+                _LOGGER.error("WebSocket connection closed during send. Retrying in %s seconds. Retry count: %s/%s",
+                              RETRY_DELAY, retry_count + 1, MAX_RETRY_COUNT)
+            except Exception as e: # Catch other potential exceptions during send
+                _LOGGER.error("Error sending command: %s. Retrying in %s seconds. Retry count: %s/%s",
+                              e, RETRY_DELAY, retry_count + 1, MAX_RETRY_COUNT)
+            
+            retry_count += 1
+            if retry_count < MAX_RETRY_COUNT:
+                await asyncio.sleep(RETRY_DELAY)
+            else:
+                _LOGGER.error("Failed to send command after %s retries.", MAX_RETRY_COUNT)
+                # Optionally re-raise an exception or handle failure
+                raise RuntimeError(f"Failed to send command after {MAX_RETRY_COUNT} retries.")
         

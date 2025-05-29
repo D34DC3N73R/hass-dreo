@@ -8,6 +8,7 @@ from homeassistant.components.light import (
     ATTR_COLOR_TEMP_KELVIN,
     ATTR_HS_COLOR,
     ATTR_RGB_COLOR, 
+    LightEntityFeature, # Ensure LightEntityFeature is explicitly imported
 )
 from homeassistant.const import STATE_ON, STATE_OFF, Platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -51,7 +52,6 @@ def create_mock_ceiling_fan(
     mock_device.device_color_temp_range_min = device_color_temp_range_min
     mock_device.device_color_temp_range_max = device_color_temp_range_max
     
-    # Actual state attributes (read by HA entity properties)
     mock_device.light_on = initial_light_on
     if supports_brightness:
         mock_device.brightness = initial_brightness
@@ -66,7 +66,6 @@ def create_mock_ceiling_fan(
     else:
         if hasattr(mock_device, 'rgb_color'): del mock_device.rgb_color
 
-    # Mock async methods called by DreoLightHA
     mock_device.async_set_light_on = AsyncMock()
     mock_device.async_set_brightness = AsyncMock()
     mock_device.async_set_color_temp = AsyncMock()
@@ -138,7 +137,6 @@ class TestDreoLight(unittest.IsolatedAsyncioTestCase):
         await light_entity.async_turn_on()
         mock_fan.async_set_light_on.assert_awaited_once_with(True)
         
-        # Simulate state update for getter
         mock_fan.light_on = True 
         self.assertTrue(light_entity.is_on)
         
@@ -160,21 +158,20 @@ class TestDreoLight(unittest.IsolatedAsyncioTestCase):
         mock_fan.brightness = 50
         self.assertEqual(light_entity.brightness, 128)
 
-        # Turn on with HA brightness 255 (device 100)
-        mock_fan.light_on = False # To ensure async_set_light_on is also called
+        mock_fan.light_on = False 
         await light_entity.async_turn_on(**{ATTR_BRIGHTNESS: 255})
         mock_fan.async_set_light_on.assert_awaited_once_with(True)
         mock_fan.async_set_brightness.assert_awaited_once_with(100)
         
-        mock_fan.brightness = 100; mock_fan.light_on = True # Simulate update
+        mock_fan.brightness = 100; mock_fan.light_on = True 
         self.assertEqual(light_entity.brightness, 255)
 
         mock_fan.async_set_brightness.reset_mock()
-        await light_entity.async_turn_on(**{ATTR_BRIGHTNESS: 128}) # HA 128 -> Device 51
+        await light_entity.async_turn_on(**{ATTR_BRIGHTNESS: 128}) 
         mock_fan.async_set_brightness.assert_awaited_once_with(51)
 
         mock_fan.async_set_brightness.reset_mock()
-        await light_entity.async_turn_on(**{ATTR_BRIGHTNESS: 1}) # HA 1 -> Device 1
+        await light_entity.async_turn_on(**{ATTR_BRIGHTNESS: 1}) 
         mock_fan.async_set_brightness.assert_awaited_once_with(1)
 
     async def test_color_temperature_control(self):
@@ -190,8 +187,8 @@ class TestDreoLight(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(light_entity.min_color_temp_kelvin, 2700)
         self.assertEqual(light_entity.max_color_temp_kelvin, 6500)
         
-        mock_fan.color_temp = 50 # Initial device value
-        self.assertEqual(light_entity.color_temp, 4600) # 50 maps to 4600K
+        mock_fan.color_temp = 50 
+        self.assertEqual(light_entity.color_temp, 4600)
 
         await light_entity.async_turn_on(**{ATTR_COLOR_TEMP_KELVIN: 2700})
         mock_fan.async_set_color_temp.assert_awaited_once_with(0)
@@ -207,7 +204,7 @@ class TestDreoLight(unittest.IsolatedAsyncioTestCase):
     async def test_hs_rgb_color_control(self):
         mock_fan = create_mock_ceiling_fan(
             supports_brightness=True, supports_color_temp=False, supports_rgb=True,
-            initial_rgb_color=(255, 0, 0) # Red
+            initial_rgb_color=(255, 0, 0) 
         )
         light_entity = DreoLightHA(mock_fan)
         self.assertEqual(light_entity.supported_color_modes, {ColorMode.BRIGHTNESS, ColorMode.HS})
@@ -241,7 +238,6 @@ class TestDreoLight(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(light_entity.color_mode, ColorMode.HS)
 
     async def test_supported_color_modes_property(self):
-        # Test cases based on DreoLightHA's current logic for supported_color_modes
         light_on_off = DreoLightHA(create_mock_ceiling_fan(supports_brightness=False, supports_color_temp=False, supports_rgb=False))
         self.assertEqual(light_on_off.supported_color_modes, {ColorMode.ONOFF})
 
@@ -254,7 +250,6 @@ class TestDreoLight(unittest.IsolatedAsyncioTestCase):
         light_ct_no_explicit_bright = DreoLightHA(create_mock_ceiling_fan(supports_brightness=False, supports_color_temp=True, supports_rgb=False))
         self.assertEqual(light_ct_no_explicit_bright.supported_color_modes, {ColorMode.BRIGHTNESS, ColorMode.COLOR_TEMP})
 
-
         light_hs_implies_bright = DreoLightHA(create_mock_ceiling_fan(supports_brightness=True, supports_color_temp=False, supports_rgb=True))
         self.assertEqual(light_hs_implies_bright.supported_color_modes, {ColorMode.BRIGHTNESS, ColorMode.HS})
 
@@ -263,6 +258,39 @@ class TestDreoLight(unittest.IsolatedAsyncioTestCase):
         
         light_all = DreoLightHA(create_mock_ceiling_fan(supports_brightness=True, supports_color_temp=True, supports_rgb=True))
         self.assertEqual(light_all.supported_color_modes, {ColorMode.BRIGHTNESS, ColorMode.COLOR_TEMP, ColorMode.HS})
+
+    async def test_supported_features_initialization(self):
+        """Test _attr_supported_features is correctly set in __init__."""
+        # Case 1: Only On/Off
+        mock_on_off = create_mock_ceiling_fan(supports_brightness=False, supports_color_temp=False, supports_rgb=False)
+        light_on_off = DreoLightHA(mock_on_off)
+        self.assertEqual(light_on_off.supported_features, LightEntityFeature(0))
+
+        # Case 2: Brightness only
+        mock_brightness = create_mock_ceiling_fan(supports_brightness=True, supports_color_temp=False, supports_rgb=False)
+        light_brightness = DreoLightHA(mock_brightness)
+        self.assertEqual(light_brightness.supported_features, LightEntityFeature.SUPPORT_BRIGHTNESS)
+
+        # Case 3: Color Temp enabled (implies Brightness feature)
+        mock_ct = create_mock_ceiling_fan(supports_brightness=False, supports_color_temp=True, supports_rgb=False)
+        light_ct = DreoLightHA(mock_ct)
+        self.assertEqual(light_ct.supported_features, LightEntityFeature.SUPPORT_BRIGHTNESS)
+
+        # Case 4: HS (RGB) enabled (implies Brightness feature)
+        mock_hs = create_mock_ceiling_fan(supports_brightness=False, supports_color_temp=False, supports_rgb=True)
+        light_hs = DreoLightHA(mock_hs)
+        self.assertEqual(light_hs.supported_features, LightEntityFeature.SUPPORT_BRIGHTNESS)
+
+        # Case 5: All features imply brightness
+        mock_all = create_mock_ceiling_fan(supports_brightness=True, supports_color_temp=True, supports_rgb=True)
+        light_all = DreoLightHA(mock_all)
+        self.assertEqual(light_all.supported_features, LightEntityFeature.SUPPORT_BRIGHTNESS)
+
+        # Case 6: Brightness and Color Temp (explicit brightness true)
+        mock_bright_ct = create_mock_ceiling_fan(supports_brightness=True, supports_color_temp=True, supports_rgb=False)
+        light_bright_ct = DreoLightHA(mock_bright_ct)
+        self.assertEqual(light_bright_ct.supported_features, LightEntityFeature.SUPPORT_BRIGHTNESS)
+
 
     async def test_turn_on_with_multiple_params(self):
         mock_fan = create_mock_ceiling_fan(
