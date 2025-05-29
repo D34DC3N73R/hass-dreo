@@ -180,31 +180,40 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
 
     @property
     def supported_color_modes(self) -> set[ColorMode] | None:
-        """Flag supported color modes based on device capabilities."""
         modes = set()
         # Check device capabilities from self.pydreo_device
         # These boolean flags (supports_brightness, supports_color_temp, supports_rgb)
-        # are assumed to be correctly set on self.pydreo_device.
+        # are assumed to be correctly set on self.pydreo_device by PyDreoCeilingFan.
 
         if self.pydreo_device.supports_rgb:
             modes.add(ColorMode.HS)
-            modes.add(ColorMode.BRIGHTNESS) # RGB implies Brightness
+            # Per HA docs, HS implies BRIGHTNESS
+            modes.add(ColorMode.BRIGHTNESS)
         
         if self.pydreo_device.supports_color_temp:
             modes.add(ColorMode.COLOR_TEMP)
-            modes.add(ColorMode.BRIGHTNESS) # Color Temp implies Brightness
-
-        # If brightness is supported independently (e.g., a white light with dimming)
-        # and not already added due to HS or ColorTemp.
+            # Per HA docs, COLOR_TEMP implies BRIGHTNESS
+            modes.add(ColorMode.BRIGHTNESS)
+        
+        # If brightness is supported independently (e.g., a dimmable white light)
+        # and not already added due to HS or ColorTemp having added it.
+        # This also covers the case where only brightness is supported.
         if self.pydreo_device.supports_brightness:
             modes.add(ColorMode.BRIGHTNESS)
             
-        # If, after all checks, no modes for brightness, color_temp, or hs are added,
+        # If, after all checks, no modes for HS, COLOR_TEMP, or BRIGHTNESS are added,
         # then it's an ONOFF-only light.
         if not modes:
+            # This case implies self.pydreo_device.supports_brightness, 
+            # self.pydreo_device.supports_color_temp, and 
+            # self.pydreo_device.supports_rgb are all False.
+            # Such a light would only support on/off.
             return {ColorMode.ONOFF}
         
-        _LOGGER.debug(f"Device {self.name} calculated supported_color_modes: {modes}")
+        # _LOGGER.debug is already present in the file from a previous change.
+        # You can keep or remove the _LOGGER.debug line for the final version as preferred.
+        # For this subtask, ensure the core logic above is implemented.
+        # Example: _LOGGER.debug(f"Device {self.name} calculated supported_color_modes: {modes}")
         return modes
 
     @property
