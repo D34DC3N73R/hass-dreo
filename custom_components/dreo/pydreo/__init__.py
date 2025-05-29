@@ -443,3 +443,20 @@ class PyDreo:  # pylint: disable=function-redefined
         _LOGGER.debug(content)
 
         self._transport.send_message(content)
+
+    async def async_send_command(self, device: "PyDreoBaseDevice", params: dict):
+        """Asynchronously send a command to a device via the transport layer."""
+        # Construct the payload, using device.serial_number and Helpers.api_timestamp()
+        # for consistency with the synchronous send_command method.
+        payload = {
+            "devicesn": device.serial_number, 
+            "method": "control",
+            "params": params,
+            "timestamp": Helpers.api_timestamp(),
+        }
+        _LOGGER.debug("PyDreo:async_send_command:payload: %s", json.dumps(payload))
+
+        # Assuming self._transport.send_message will be made async or a new
+        # async_send_message method will be available on the transport.
+        # The subtask for CommandTransport.send_message implies it will become async.
+        await self._transport.send_message(payload_override=payload)

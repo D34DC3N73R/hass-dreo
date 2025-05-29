@@ -159,19 +159,18 @@ class PyDreoAirCirculator(PyDreoFanBase):
         # horizontal oscillation switch.
         return None
 
-    @horizontally_oscillating.setter
-    def horizontally_oscillating(self, value: bool) -> None:
-        """Enable or disable vertical oscillation"""
-        _LOGGER.debug("PyDreoAirCirculator:horizontally_oscillating.setter")
-        if self._horizontally_oscillating is not None:
-            self._send_command(HORIZONTAL_OSCILLATION_KEY, value)
-        elif self._osc_mode is not None:
+    async def async_set_horizontally_oscillating(self, value: bool) -> None:
+        """Enable or disable horizontal oscillation asynchronously."""
+        _LOGGER.debug("PyDreoAirCirculator:async_set_horizontally_oscillating")
+        if self._horizontally_oscillating is not None: # Check based on state attribute
+            await self._send_command(HORIZONTAL_OSCILLATION_KEY, value)
+        elif self._osc_mode is not None: # Check based on state attribute
             osc_computed = None
             if value:
                 osc_computed = self._osc_mode | OscillationMode.HORIZONTAL
             else:
                 osc_computed = self._osc_mode & ~OscillationMode.HORIZONTAL
-            self._send_command(OSCMODE_KEY, osc_computed)
+            await self._send_command(OSCMODE_KEY, osc_computed)
         else:
             raise NotImplementedError("Horizontal oscillation is not supported.")
 
@@ -195,18 +194,18 @@ class PyDreoAirCirculator(PyDreoFanBase):
 
         return None
 
-    @vertically_oscillating.setter
-    def vertically_oscillating(self, value: bool) -> None:
-        """Enable or disable vertical oscillation"""
-        if self._horizontally_oscillating is not None:
-            self._send_command(VERTICAL_OSCILLATION_KEY, value)
-        elif self._osc_mode is not None:
+    async def async_set_vertically_oscillating(self, value: bool) -> None:
+        """Enable or disable vertical oscillation asynchronously."""
+        _LOGGER.debug("PyDreoAirCirculator:async_set_vertically_oscillating")
+        if self._vertically_oscillating is not None: # Check based on state attribute
+            await self._send_command(VERTICAL_OSCILLATION_KEY, value)
+        elif self._osc_mode is not None: # Check based on state attribute
             osc_computed = None
             if value:
                 osc_computed = self._osc_mode | OscillationMode.VERTICAL
             else:
                 osc_computed = self._osc_mode & ~OscillationMode.VERTICAL
-            self._send_command(OSCMODE_KEY, osc_computed)
+            await self._send_command(OSCMODE_KEY, osc_computed)
         else:
             raise NotImplementedError("Vertical oscillation is not supported.")
 
@@ -220,22 +219,21 @@ class PyDreoAirCirculator(PyDreoFanBase):
         """Get the bottom vertical oscillation angle range."""
         return self.vertical_angle_range
 
-    def set_horizontal_oscillation_angle(self, angle: int) -> None:
-        """Set the horizontal oscillation angle."""
-        _LOGGER.debug("PyDreoAirCirculatorFan:set_horizontal_oscillation_angle")
-        if not self._horizontally_oscillating is None:
-            raise NotImplementedError("This device does not support horizontal oscillation")
-            
-        self._send_command(HORIZONTAL_OSCILLATION_ANGLE_KEY, angle)
+    async def async_set_horizontal_oscillation_angle(self, angle: int) -> None:
+        """Set the horizontal oscillation angle asynchronously."""
+        _LOGGER.debug("PyDreoAirCirculatorFan:async_set_horizontal_oscillation_angle")
+        # Assuming HORIZONTAL_OSCILLATION_ANGLE_KEY implies support.
+        # The original check `if not self._horizontally_oscillating is None:` seems inverted;
+        # it should likely check if oscillation is supported or if the key is known.
+        # For now, directly send if called, assuming caller verified support.
+        await self._send_command(HORIZONTAL_OSCILLATION_ANGLE_KEY, angle)
 
-    def set_vertical_oscillation_angle(self, angle: int) -> None:
-        """Set the vertical oscillation angle."""
-        _LOGGER.debug("PyDreoAirCirculatorFan:set_vertical_oscillation_angle")
-        if not self._vertically_oscillating is None:
-            raise NotImplementedError("This device does not support vertical oscillation")
-            
-
-        self._send_command(VERTICAL_OSCILLATION_ANGLE_KEY, angle)
+    async def async_set_vertical_oscillation_angle(self, angle: int) -> None:
+        """Set the vertical oscillation angle asynchronously."""
+        _LOGGER.debug("PyDreoAirCirculatorFan:async_set_vertical_oscillation_angle")
+        # Assuming VERTICAL_OSCILLATION_ANGLE_KEY implies support.
+        # Similar to horizontal, the original check seems potentially problematic.
+        await self._send_command(VERTICAL_OSCILLATION_ANGLE_KEY, angle)
 
     @property
     def vertical_osc_angle_top(self) -> int:
@@ -243,19 +241,18 @@ class PyDreoAirCirculator(PyDreoFanBase):
         if self._cruise_conf is not None:
             return self._cruise_conf.split(",")[0]
 
-    @vertical_osc_angle_top.setter
-    def vertical_osc_angle_top(self, value: int) -> None:
-        """Set the top vertical oscillation angle."""
-        _LOGGER.debug("PyDreoAirCirculator:vertical_osc_angle_top.setter")
-        if self._cruise_conf is not None:
+    async def async_set_vertical_osc_angle_top(self, value: int) -> None:
+        """Set the top vertical oscillation angle asynchronously."""
+        _LOGGER.debug("PyDreoAirCirculator:async_set_vertical_osc_angle_top")
+        if self._cruise_conf is not None: # Check based on state attribute
             bottom_angle = int(self._cruise_conf.split(",")[2])
-            # 30 deg is the minimum top-bottom and left-right difference for the tested fan (DR-HAF003S)
             if value - bottom_angle < MIN_OSC_ANGLE_DIFFERENCE:
                 raise ValueError(f"Top angle must be at least {MIN_OSC_ANGLE_DIFFERENCE} greater than bottom angle")
             cruise_conf_values = self._cruise_conf.split(',')
-            # Note that HA seems to send this in as a float, so we need to convert to int just in case
             cruise_conf_values[0] = int(value)
-            self._send_command(CRUISECONF_KEY, ','.join(map(str, cruise_conf_values)))
+            await self._send_command(CRUISECONF_KEY, ','.join(map(str, cruise_conf_values)))
+        else:
+            raise NotImplementedError("Cruise control configuration not available.")
 
     @property
     def vertical_osc_angle_bottom(self) -> int:
@@ -263,19 +260,18 @@ class PyDreoAirCirculator(PyDreoFanBase):
         if self._cruise_conf is not None:
             return self._cruise_conf.split(",")[2]
 
-    @vertical_osc_angle_bottom.setter
-    def vertical_osc_angle_bottom(self, value: int) -> None:
-        """Set the bottom vertical oscillation angle."""
-        _LOGGER.debug("PyDreoAirCirculator:vertical_osc_angle_bottom.setter")
-        if self._cruise_conf is not None:
+    async def async_set_vertical_osc_angle_bottom(self, value: int) -> None:
+        """Set the bottom vertical oscillation angle asynchronously."""
+        _LOGGER.debug("PyDreoAirCirculator:async_set_vertical_osc_angle_bottom")
+        if self._cruise_conf is not None: # Check based on state attribute
             top_angle = int(self._cruise_conf.split(",")[0])
-            # 30 deg is the minimum top-bottom and left-right difference for the tested fan (DR-HAF003S)
             if top_angle - value < MIN_OSC_ANGLE_DIFFERENCE:
                 raise ValueError(f"Bottom angle must be at least {MIN_OSC_ANGLE_DIFFERENCE} less than top angle")
             cruise_conf_values = self._cruise_conf.split(',')
-            # Note that HA seems to send this in as a float, so we need to convert to int just in case
             cruise_conf_values[2] = int(value)
-            self._send_command(CRUISECONF_KEY, ','.join(map(str, cruise_conf_values)))
+            await self._send_command(CRUISECONF_KEY, ','.join(map(str, cruise_conf_values)))
+        else:
+            raise NotImplementedError("Cruise control configuration not available.")
 
     @property
     def horizontal_osc_angle_right(self) -> int:
@@ -283,19 +279,18 @@ class PyDreoAirCirculator(PyDreoFanBase):
         if self._cruise_conf is not None:
             return self._cruise_conf.split(",")[1]
 
-    @horizontal_osc_angle_right.setter
-    def horizontal_osc_angle_right(self, value: int) -> None:
-        """Set the right horizontal oscillation angle."""
-        _LOGGER.debug("PyDreoAirCirculator:horizontal_osc_angle_right.setter")
-        if self._cruise_conf is not None:
+    async def async_set_horizontal_osc_angle_right(self, value: int) -> None:
+        """Set the right horizontal oscillation angle asynchronously."""
+        _LOGGER.debug("PyDreoAirCirculator:async_set_horizontal_osc_angle_right")
+        if self._cruise_conf is not None: # Check based on state attribute
             left_angle = int(self._cruise_conf.split(",")[3])
-            # 30 deg is the minimum top-bottom and left-right difference for the tested fan (DR-HAF003S)
             if value - left_angle < MIN_OSC_ANGLE_DIFFERENCE:
                 raise ValueError(f"Right angle must be at least {MIN_OSC_ANGLE_DIFFERENCE} greater than left angle")
             cruise_conf_values = self._cruise_conf.split(',')
-            # Note that HA seems to send this in as a float, so we need to convert to int just in case
             cruise_conf_values[1] = int(value)
-            self._send_command(CRUISECONF_KEY, ','.join(map(str, cruise_conf_values)))
+            await self._send_command(CRUISECONF_KEY, ','.join(map(str, cruise_conf_values)))
+        else:
+            raise NotImplementedError("Cruise control configuration not available.")
 
     @property
     def horizontal_osc_angle_left(self) -> int:
@@ -303,19 +298,18 @@ class PyDreoAirCirculator(PyDreoFanBase):
         if self._cruise_conf is not None:
             return self._cruise_conf.split(",")[3]
 
-    @horizontal_osc_angle_left.setter
-    def horizontal_osc_angle_left(self, value: int) -> None:
-        """Set the left horizontal oscillation angle."""
-        _LOGGER.debug("PyDreoAirCirculator:horizontal_osc_angle_left.setter")
-        if self._cruise_conf is not None:
+    async def async_set_horizontal_osc_angle_left(self, value: int) -> None:
+        """Set the left horizontal oscillation angle asynchronously."""
+        _LOGGER.debug("PyDreoAirCirculator:async_set_horizontal_osc_angle_left")
+        if self._cruise_conf is not None: # Check based on state attribute
             right_angle = int(self._cruise_conf.split(",")[1])
-            # 30 deg is the minimum top-bottom and left-right difference for the tested fan (DR-HAF003S)
             if right_angle - value < MIN_OSC_ANGLE_DIFFERENCE:
                 raise ValueError(f"Left angle must be at least {MIN_OSC_ANGLE_DIFFERENCE} less than right angle")
             cruise_conf_values = self._cruise_conf.split(',')
-            # Note that HA seems to send this in as a float, so we need to convert to int just in case
             cruise_conf_values[3] = int(value)
-            self._send_command(CRUISECONF_KEY, ','.join(map(str, cruise_conf_values)))
+            await self._send_command(CRUISECONF_KEY, ','.join(map(str, cruise_conf_values)))
+        else:
+            raise NotImplementedError("Cruise control configuration not available.")
 
     @property
     def horizontal_angle(self) -> int:
@@ -323,13 +317,13 @@ class PyDreoAirCirculator(PyDreoFanBase):
         if (self._fixed_conf is not None):
             return self._fixed_conf.split(",")[1]
 
-    @horizontal_angle.setter
-    def horizontal_angle(self, value: int) -> None:
-        """Set the horizontal angle."""
-        _LOGGER.debug("PyDreoAirCirculator:horizontal_angle.setter")
-        if (self._fixed_conf is not None):
-            # Note that HA seems to send this in as a float, so we need to convert to int just in case
-            self._send_command(FIXEDCONF_KEY, f"{self._fixed_conf.split(',')[0]},{int(value)}")
+    async def async_set_horizontal_angle(self, value: int) -> None:
+        """Set the horizontal angle asynchronously."""
+        _LOGGER.debug("PyDreoAirCirculator:async_set_horizontal_angle")
+        if (self._fixed_conf is not None): # Check based on state attribute
+            await self._send_command(FIXEDCONF_KEY, f"{self._fixed_conf.split(',')[0]},{int(value)}")
+        else:
+            raise NotImplementedError("Fixed configuration not available.")
 
     @property
     def vertical_angle(self) -> int:
@@ -337,13 +331,13 @@ class PyDreoAirCirculator(PyDreoFanBase):
         if self._fixed_conf is not None:
             return self._fixed_conf.split(",")[0]
 
-    @vertical_angle.setter
-    def vertical_angle(self, value: int) -> None:
-        """Set the vertical angle."""
-        _LOGGER.debug("PyDreoAirCirculator:vertical_angle.setter")
-        if self._fixed_conf is not None:
-            # Note that HA seems to send this in as a float, we need to convert to int just in case
-            self._send_command(FIXEDCONF_KEY, f"{int(value)},{self._fixed_conf.split(',')[1]}")
+    async def async_set_vertical_angle(self, value: int) -> None:
+        """Set the vertical angle asynchronously."""
+        _LOGGER.debug("PyDreoAirCirculator:async_set_vertical_angle")
+        if self._fixed_conf is not None: # Check based on state attribute
+            await self._send_command(FIXEDCONF_KEY, f"{int(value)},{self._fixed_conf.split(',')[1]}")
+        else:
+            raise NotImplementedError("Fixed configuration not available.")
 
     def update_state(self, state: dict):
         """Process the state dictionary from the REST API."""

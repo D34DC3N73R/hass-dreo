@@ -43,23 +43,35 @@ class PyDreoChefMaker(PyDreoBaseDevice):
         """Return True if device is on."""
         return self._is_on
 
-    @is_on.setter
-    def is_on(self, value: bool) -> None:
-        """Set the power state of the device."""
-        self._is_on = value
-        self.set_mode_from_is_on()
-        self._send_command(POWERON_KEY, value)
+    async def async_set_is_on(self, value: bool) -> None:
+        """Set the power state of the device asynchronously."""
+        _LOGGER.debug("PyDreoChefMaker:async_set_is_on - %s", value)
+        # self._is_on = value # Optimistic update removed
+        # The original setter called set_mode_from_is_on(). This logic needs to be evaluated.
+        # If set_mode_from_is_on() is purely for internal state based on the new 'is_on' value,
+        # it might still be relevant BEFORE sending the command if the command payload
+        # depends on the 'mode' that would result from this 'is_on' change.
+        # However, set_mode_from_is_on() updates self.mode which might be read by HA
+        # before the device confirms the state.
+        # For now, let's assume that if `is_on` is being set, the mode will be updated
+        # by the device response eventually. If `set_mode_from_is_on` is critical
+        # for the command payload itself (which seems unlikely for POWERON_KEY),
+        # then it should be here. Given it updates self.mode, it's better to let
+        # state updates handle it.
+        # self.set_mode_from_is_on() # Removed for now, rely on device state update
+        await self._send_command(POWERON_KEY, value)
 
     @property
     def ledpotkepton(self) -> bool:
         """Return True if device is on."""
         return self._ledpotkepton > 0
 
-    @ledpotkepton.setter
-    def ledpotkepton(self, value: bool) -> None:
-        """Set the power state of the device."""
-        self._ledpotkepton = 1 if value else 0
-        self._send_command(LIGHT_KEY, self._ledpotkepton)
+    async def async_set_ledpotkepton(self, value: bool) -> None:
+        """Set the ledpotkepton state asynchronously."""
+        _LOGGER.debug("PyDreoChefMaker:async_set_ledpotkepton - %s", value)
+        new_ledpotkepton_val = 1 if value else 0
+        # self._ledpotkepton = new_ledpotkepton_val # Optimistic update removed
+        await self._send_command(LIGHT_KEY, new_ledpotkepton_val)
 
     @property
     def mode(self) -> str:

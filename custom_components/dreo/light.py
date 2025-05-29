@@ -182,15 +182,25 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
     def supported_color_modes(self) -> set[ColorMode] | None:
         """Flag supported color modes based on device capabilities."""
         modes = set()
-        if self.pydreo_device.supports_brightness:
-            modes.add(ColorMode.BRIGHTNESS)
-        if self.pydreo_device.supports_color_temp:
-            modes.add(ColorMode.COLOR_TEMP)
+        # Check device capabilities from self.pydreo_device
+        # These boolean flags (supports_brightness, supports_color_temp, supports_rgb)
+        # are assumed to be correctly set on self.pydreo_device.
+
         if self.pydreo_device.supports_rgb:
             modes.add(ColorMode.HS)
+            modes.add(ColorMode.BRIGHTNESS) # RGB implies Brightness
         
-        # If no specific color modes are supported, it's an ONOFF light.
-        # Otherwise, ONOFF is implied by HA if other modes are present.
+        if self.pydreo_device.supports_color_temp:
+            modes.add(ColorMode.COLOR_TEMP)
+            modes.add(ColorMode.BRIGHTNESS) # Color Temp implies Brightness
+
+        # If brightness is supported independently (e.g., a white light with dimming)
+        # and not already added due to HS or ColorTemp.
+        if self.pydreo_device.supports_brightness:
+            modes.add(ColorMode.BRIGHTNESS)
+            
+        # If, after all checks, no modes for brightness, color_temp, or hs are added,
+        # then it's an ONOFF-only light.
         if not modes:
             return {ColorMode.ONOFF}
         
@@ -230,29 +240,26 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         _LOGGER.debug(f"Turning on light: {self.name} with kwargs: {kwargs}")
 
         # Always ensure the light is physically on
-        if not self.pydreo_device.light_on:
-            self.pydreo_device.light_on = True
+        if not self.pydreo_device.light_on: # Check current state before sending command
+            await self.pydreo_device.async_set_light_on(True)
             # Potentially add a small delay here if needed for the device to register 'on'
-            # await asyncio.sleep(0.1) 
+            # await asyncio.sleep(0.1) # Typically not needed if commands are awaited
 
         # Color setting takes precedence
         if ATTR_HS_COLOR in kwargs and ColorMode.HS in self.supported_color_modes:
             hs_color = kwargs[ATTR_HS_COLOR]
             rgb_color = color_hs_to_RGB(*hs_color)
             _LOGGER.debug(f"Setting HS color for {self.name} to {hs_color} -> RGB {rgb_color}")
-            self.pydreo_device.rgb_color = cast(tuple[int,int,int], rgb_color)
-            # Setting RGB might clear color_temp on some devices, let pydreo handle it or explicitly clear:
-            # if self.pydreo_device.color_temp is not None: self.pydreo_device.color_temp = None
+            await self.pydreo_device.async_set_rgb_color(cast(tuple[int,int,int], rgb_color))
+            # Assuming pydreo_device.async_set_rgb_color handles clearing color_temp if necessary
 
         elif ATTR_COLOR_TEMP_KELVIN in kwargs and ColorMode.COLOR_TEMP in self.supported_color_modes:
             kelvin_value = kwargs[ATTR_COLOR_TEMP_KELVIN]
             device_value = self._kelvin_to_device_range(kelvin_value)
             if device_value is not None:
                 _LOGGER.debug(f"Setting color temp for {self.name} to {kelvin_value}K -> Device value {device_value}")
-                self.pydreo_device.color_temp = device_value
-                # Clear RGB if device doesn't support simultaneous CCT and RGB
-                if self.pydreo_device.supports_rgb and not getattr(self.pydreo_device, 'supports_simultaneous_rgb_ct', False):
-                    self.pydreo_device.rgb_color = None 
+                await self.pydreo_device.async_set_color_temp(device_value)
+                # Assuming pydreo_device.async_set_color_temp handles clearing rgb_color if necessary
             else:
                 _LOGGER.warning(f"Could not map Kelvin value {kelvin_value} to device range for {self.name}")
         
@@ -264,7 +271,7 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
             device_brightness = max(DEVICE_BRIGHTNESS_MIN, min(device_brightness, DEVICE_BRIGHTNESS_MAX))
             
             _LOGGER.debug(f"Setting brightness for {self.name} to {ha_brightness} (HA) -> {device_brightness} (Device)")
-            self.pydreo_device.brightness = device_brightness
+            await self.pydreo_device.async_set_brightness(device_brightness)
         elif not kwargs and not self.pydreo_device.brightness and ColorMode.BRIGHTNESS in self.supported_color_modes:
             # If turned on without specific brightness, and brightness isn't set,
             # ensure a default brightness if applicable (e.g. 100%)
@@ -279,5 +286,5 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""
         _LOGGER.debug(f"Turning off light: {self.name}")
-        self.pydreo_device.light_on = False
+        await self.pydreo_device.async_set_light_on(False)
         self.async_write_ha_state()

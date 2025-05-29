@@ -105,11 +105,10 @@ class PyDreoAC(PyDreoBaseDevice):
         """Returns `True` if the device is on, `False` otherwise."""
         return self._is_on
 
-    @poweron.setter
-    def poweron(self, value: bool):
-        """Set if the air conditioner is on or off"""
-        _LOGGER.debug("PyDreoAC:poweron.setter - %s", value)
-        self._send_command(POWERON_KEY, value)
+    async def async_set_poweron(self, value: bool):
+        """Set if the air conditioner is on or off asynchronously."""
+        _LOGGER.debug("PyDreoAC:async_set_poweron - %s", value)
+        await self._send_command(POWERON_KEY, value)
 
     @property
     def preset_modes(self):
@@ -126,32 +125,29 @@ class PyDreoAC(PyDreoBaseDevice):
         """Returns `True` if devon is true, `False` otherwise. Whatever devon is"""
         return self._dev_on
 
-    @devon.setter
-    def devon(self, value: bool):
-        _LOGGER.debug("PyDreoAC:devon.setter - %s", value)
-        self._send_command(DEVON_KEY, value)
+    async def async_set_devon(self, value: bool):
+        _LOGGER.debug("PyDreoAC:async_set_devon - %s", value)
+        await self._send_command(DEVON_KEY, value)
 
     @property
     def mode(self):
         """Return the current preset mode."""
         return self._mode
 
-    @mode.setter
-    def mode(self, mode: str) -> None:
-        _LOGGER.debug("PyDreoAC:mode(%s) --> %s", self.name, mode)
-        self._send_command(MODE_KEY, mode)
+    async def async_set_mode(self, mode: str) -> None:
+        _LOGGER.debug("PyDreoAC:async_set_mode(%s) --> %s", self.name, mode)
+        await self._send_command(MODE_KEY, mode)
 
     @property
     def fan_mode(self) -> str:
         """Return the current fan mode"""
         return self._fan_mode
 
-    @fan_mode.setter
-    def fan_mode(self, mode: str) -> None:
-        """Set fan mode if requested"""
-        _LOGGER.debug("PyDreoAC:fan_mode.setter(%s) %s --> %s", self.name, self._fan_mode, mode)
-        self._fan_mode = mode
-        self._send_command(WINDLEVEL_KEY, DREO_AC_FAN_MODE_MAP[mode])
+    async def async_set_fan_mode(self, mode: str) -> None:
+        """Set fan mode if requested asynchronously."""
+        _LOGGER.debug("PyDreoAC:async_set_fan_mode(%s) --> %s", self.name, mode)
+        # self._fan_mode = mode # Optimistic update removed
+        await self._send_command(WINDLEVEL_KEY, DREO_AC_FAN_MODE_MAP[mode])
 
     @property
     def temperature(self):
@@ -180,12 +176,11 @@ class PyDreoAC(PyDreoBaseDevice):
         """Get the temperature"""
         return self._target_temperature
 
-    @target_temperature.setter
-    def target_temperature(self, value: int) -> None:
-        """Set the target temperature"""
-        _LOGGER.debug("PyDreoAC:target_temperature.setter(%s) %s --> %s", self, self._target_temperature, value)
-        self._target_temperature = value
-        self._send_command(TARGET_TEMPERATURE_KEY, value)
+    async def async_set_target_temperature(self, value: int) -> None:
+        """Set the target temperature asynchronously."""
+        _LOGGER.debug("PyDreoAC:async_set_target_temperature(%s) --> %s", self.name, value)
+        # self._target_temperature = value # Optimistic update removed
+        await self._send_command(TARGET_TEMPERATURE_KEY, value)
 
     @property
     def humidity(self):
@@ -197,69 +192,63 @@ class PyDreoAC(PyDreoBaseDevice):
         """Get the target_humidity"""
         return self._target_humidity
 
-    @target_humidity.setter
-    def target_humidity(self, value: int) -> None:
-        """Set the target humidity"""
-        _LOGGER.debug("PyDreoAC:target_humidity.setter(%s) %s --> %s", self, self._target_humidity, value)
-        self._target_humidity = value
-        self._send_command(TARGET_HUMIDITY_KEY, value)
+    async def async_set_target_humidity(self, value: int) -> None:
+        """Set the target humidity asynchronously."""
+        _LOGGER.debug("PyDreoAC:async_set_target_humidity(%s) --> %s", self.name, value)
+        # self._target_humidity = value # Optimistic update removed
+        await self._send_command(TARGET_HUMIDITY_KEY, value)
 
     @property
     def oscon(self) -> bool:
         """Returns `True` if oscillation is on."""
         return self._osc_mode is not None and self._osc_mode == AC_OSC_ON
 
-    @oscon.setter
-    def oscon(self, value: bool) -> None:
-        """Enable or disable oscillation"""
+    async def async_set_oscon(self, value: bool) -> None:
+        """Enable or disable oscillation asynchronously."""
         set_val = AC_OSC_ON if value else AC_OSC_OFF
-        _LOGGER.debug("PyDreoAC:oscon.setter(%s) -> %s (%s)", self.name, value, set_val)
-        self._osc_mode = set_val
-        self._send_command(OSCMODE_KEY, set_val)
+        _LOGGER.debug("PyDreoAC:async_set_oscon(%s) -> %s (%s)", self.name, value, set_val)
+        # self._osc_mode = set_val # Optimistic update removed
+        await self._send_command(OSCMODE_KEY, set_val)
 
     @property
     def ptcon(self) -> bool:
         """Returns `True` if PTC is on."""
         return self._ptc_on
 
-    @ptcon.setter
-    def ptcon(self, value: bool) -> None:
-        """Enable or disable PTC"""
-        _LOGGER.debug("PyDreoAC:ptcon.setter(%s) --> %s", self.name, value)
-        self._send_command(PTCON_KEY, value)
+    async def async_set_ptcon(self, value: bool) -> None:
+        """Enable or disable PTC asynchronously."""
+        _LOGGER.debug("PyDreoAC:async_set_ptcon(%s) --> %s", self.name, value)
+        await self._send_command(PTCON_KEY, value)
 
     @property
     def display_auto_off(self) -> bool:
         """Returns `True` if Display Auto off is OFF."""
         return self._display_auto_off
 
-    @display_auto_off.setter
-    def display_auto_off(self, value: bool) -> None:
-        """Enable or disable display auto-off"""
-        _LOGGER.debug("PyDreoAC:display_auto_off.setter(%s) --> %s", self.name, value)
-        self._send_command(LIGHTON_KEY, not value)
+    async def async_set_display_auto_off(self, value: bool) -> None:
+        """Enable or disable display auto-off asynchronously."""
+        _LOGGER.debug("PyDreoAC:async_set_display_auto_off(%s) --> %s", self.name, value)
+        await self._send_command(LIGHTON_KEY, not value)
 
     @property
     def ctlstatus(self) -> bool:
         """Returns `True` if ctlstatus is on."""
         return self._ctlstatus
 
-    @ctlstatus.setter
-    def ctlstatus(self, value: bool) -> None:
-        """Enable or disable ctlstatus"""
-        _LOGGER.debug("PyDreoAC:ctlstatus.setter(%s) --> %s", self.name, value)
-        self._send_command(CTLSTATUS_KEY, value)
+    async def async_set_ctlstatus(self, value: bool) -> None:
+        """Enable or disable ctlstatus asynchronously."""
+        _LOGGER.debug("PyDreoAC:async_set_ctlstatus(%s) --> %s", self.name, value)
+        await self._send_command(CTLSTATUS_KEY, value)
 
     @property
     def childlockon(self) -> bool:
         """Returns `True` if Child Lock is on."""
         return self._childlockon
 
-    @childlockon.setter
-    def childlockon(self, value: bool) -> None:
-        """Enable or disable Child Lock"""
-        _LOGGER.debug("PyDreoAC:childlockon.setter(%s) --> %s", self.name, value)
-        self._send_command(CHILDLOCKON_KEY, value)
+    async def async_set_childlockon(self, value: bool) -> None:
+        """Enable or disable Child Lock asynchronously."""
+        _LOGGER.debug("PyDreoAC:async_set_childlockon(%s) --> %s", self.name, value)
+        await self._send_command(CHILDLOCKON_KEY, value)
 
     @property
     def panel_sound(self) -> bool:
@@ -268,28 +257,26 @@ class PyDreoAC(PyDreoBaseDevice):
             return not self._mute_on
         return None
 
-    @panel_sound.setter
-    def panel_sound(self, value: bool) -> None:
-        """Set if the panel sound"""
-        _LOGGER.debug("PyDreoAC:panel_sound.setter(%s) --> %s", self.name, value)
-        self._send_command(MUTEON_KEY, not value)
+    async def async_set_panel_sound(self, value: bool) -> None:
+        """Set if the panel sound asynchronously."""
+        _LOGGER.debug("PyDreoAC:async_set_panel_sound(%s) --> %s", self.name, value)
+        await self._send_command(MUTEON_KEY, not value)
         
     @property
     def preset_mode(self) -> str:
         """Return the current preset mode."""
         return self._preset_mode
 
-    @preset_mode.setter
-    def preset_mode(self, mode: str) -> None:
-        """Set the preset mode."""
-        _LOGGER.debug("PyDreoAC:preset_mode.setter(%s) %s --> %s", self.name, self._preset_mode, mode)
+    async def async_set_preset_mode(self, mode: str) -> None:
+        """Set the preset mode asynchronously."""
+        _LOGGER.debug("PyDreoAC:async_set_preset_mode(%s) --> %s", self.name, mode)
         
         if mode == PRESET_ECO:
-            self._send_command(MODE_KEY, DREO_AC_MODE_ECO)
-        else:
-            self._send_command(MODE_KEY, DREO_AC_MODE_COOL)
+            await self._send_command(MODE_KEY, DREO_AC_MODE_ECO)
+        else: # Assuming PRESET_NONE or any other value defaults to COOL
+            await self._send_command(MODE_KEY, DREO_AC_MODE_COOL)
         
-        self._preset_mode = mode
+        # self._preset_mode = mode # Optimistic update removed
 
     def update_state(self, state: dict):
         """Process the state dictionary from the REST API."""

@@ -114,55 +114,61 @@ class PyDreoEvaporativeCooler(PyDreoFanBase):
         """Returns `True` if humidifying is on"""
         return self._humidify
     
-    @humidify.setter
-    def humidify(self, mode: bool) -> None:
-        """Enable or disable humidifying"""
-        self._humidify = mode
-        self._send_command(HUMIDIFY_MODE_KEY, HUMIDIFY_MODE_MAP[mode])
+    async def async_set_humidify(self, mode: bool) -> None:
+        """Enable or disable humidifying asynchronously."""
+        _LOGGER.debug("PyDreoEvaporativeCooler:async_set_humidify - %s", mode)
+        # self._humidify = mode # Optimistic update removed
+        await self._send_command(HUMIDIFY_MODE_KEY, HUMIDIFY_MODE_MAP[mode])
 
     @property
     def target_humidity(self):
         """Get the target_humidity"""
         return self._target_humidity
 
-    @target_humidity.setter
-    def target_humidity(self, value: int) -> None:
-        """Set the target humidity"""
-        _LOGGER.debug("PyDreoEvaporativeCooler:target_humidity.setter(%s) %s --> %s", self, self._target_humidity, value)
-        self._target_humidity = value
-        self._send_command(HUMIDITY_TARGET_KEY, value)
+    async def async_set_target_humidity(self, value: int) -> None:
+        """Set the target humidity asynchronously."""
+        _LOGGER.debug("PyDreoEvaporativeCooler:async_set_target_humidity - %s", value)
+        # self._target_humidity = value # Optimistic update removed
+        await self._send_command(HUMIDITY_TARGET_KEY, value)
     
     @property
     def oscillating(self) -> bool:
        """Returns `True` if oscillation is on"""
        return self._oscillating
     
-    @oscillating.setter
-    def oscillating(self, value: bool) -> None:
-        """Enable or disable oscillation"""
-        self._oscillating = value
-        self._send_command(HORIZONTAL_OSCILLATION_KEY, value)
+    async def async_set_oscillating(self, value: bool) -> None:
+        """Enable or disable oscillation asynchronously."""
+        _LOGGER.debug("PyDreoEvaporativeCooler:async_set_oscillating - %s", value)
+        # self._oscillating = value # Optimistic update removed
+        await self._send_command(HORIZONTAL_OSCILLATION_KEY, value)
 
     @property
     def childlockon(self) -> bool:
         """Returns `True` if child lock is on"""
         return self._childlockon
     
-    @childlockon.setter
-    def childlockon(self, value: bool) -> None:
-        """Enable or disable child lock"""
-        self._childlockon = value
-        self._send_command(CHILDLOCKON_KEY, value)
+    async def async_set_childlockon(self, value: bool) -> None:
+        """Enable or disable child lock asynchronously."""
+        _LOGGER.debug("PyDreoEvaporativeCooler:async_set_childlockon - %s", value)
+        # self._childlockon = value # Optimistic update removed
+        await self._send_command(CHILDLOCKON_KEY, value)
         
     @property
     def preset_mode(self):
         """Return the current preset mode"""
-        return self._wind_mode
+        # Ensure that _wind_mode (which stores the numeric value from the device)
+        # is mapped back to its string representation.
+        if self._wind_mode in WINDMODE_MAP:
+            return WINDMODE_MAP[self._wind_mode]
+        return self._wind_mode # Fallback if not in map (should ideally not happen)
 
-    @preset_mode.setter
-    def preset_mode(self, value: str) -> None:
-        """Set preset mode"""
-        self._send_command(WIND_MODE_KEY, WINDMODE_MAP[value])
+
+    async def async_set_preset_mode(self, value: str) -> None:
+        """Set preset mode asynchronously."""
+        _LOGGER.debug("PyDreoEvaporativeCooler:async_set_preset_mode - %s", value)
+        if value not in WINDMODE_MAP:
+            raise ValueError(f"Invalid preset mode: {value}. Must be one of {self.preset_modes}")
+        await self._send_command(WIND_MODE_KEY, WINDMODE_MAP[value])
 
     @property
     def preset_modes(self) -> list[str]:

@@ -123,13 +123,13 @@ class PyDreoBaseDevice(object):
     def handle_server_update(self, message: dict):
         """Method to process WebSocket message"""
 
-    def _send_command(self, command_key: str, value):
+    async def _send_command(self, command_key: str, value): # Changed to async def
         """Send a command to the Dreo servers via WebSocket."""
         _LOGGER.debug(
             "pyDreoBaseDevice(%s):send_command: %s-> %s", self, command_key, value
         )
         params: dict = {command_key: value}
-        self._dreo.send_command(self, params)
+        await self._dreo.async_send_command(self, params) # Changed to await and async_send_command
 
     def _set_setting(self, setting_key: str, value):
         """Set a setting on the device."""

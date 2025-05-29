@@ -65,11 +65,11 @@ class PyDreoHumidifier(PyDreoBaseDevice):
         """Returns `True` if the device is on, `False` otherwise."""
         return self._is_on
 
-    @is_on.setter
-    def is_on(self, value: bool):
-        """Set if the fan is on or off"""
-        _LOGGER.debug("PyDreoHumidifier:is_on.setter - %s", value)
-        self._send_command(POWERON_KEY, value)
+    async def async_set_is_on(self, value: bool):
+        """Set if the humidifier is on or off asynchronously."""
+        _LOGGER.debug("PyDreoHumidifier:async_set_is_on - %s", value)
+        # self._is_on = value # Optimistic update removed
+        await self._send_command(POWERON_KEY, value)
 
     @property
     def modes(self) -> list[str]:
@@ -86,12 +86,11 @@ class PyDreoHumidifier(PyDreoBaseDevice):
         """Get the target_humidity"""
         return self._target_humidity
 
-    @target_humidity.setter
-    def target_humidity(self, value: int) -> None:
-        """Set the target humidity"""
-        _LOGGER.debug("PyDreoHumidifier:target_humidity.setter(%s) %s --> %s", self, self._target_humidity, value)
-        self._target_humidity = value
-        self._send_command(TARGET_AUTO_HUMIDITY_KEY, value)
+    async def async_set_target_humidity(self, value: int) -> None:
+        """Set the target humidity asynchronously."""
+        _LOGGER.debug("PyDreoHumidifier:async_set_target_humidity(%s) --> %s", self.name, value)
+        # self._target_humidity = value # Optimistic update removed
+        await self._send_command(TARGET_AUTO_HUMIDITY_KEY, value)
 
     @property
     def panel_sound(self) -> bool:
@@ -100,11 +99,10 @@ class PyDreoHumidifier(PyDreoBaseDevice):
             return not self._mute_on
         return None
 
-    @panel_sound.setter
-    def panel_sound(self, value: bool) -> None:
-        """Set if the panel sound"""
-        _LOGGER.debug("PyDreoHumidifier:panel_sound.setter(%s) --> %s", self.name, value)
-        self._send_command(MUTEON_KEY, not value)
+    async def async_set_panel_sound(self, value: bool) -> None:
+        """Set if the panel sound asynchronously."""
+        _LOGGER.debug("PyDreoHumidifier:async_set_panel_sound(%s) --> %s", self.name, value)
+        await self._send_command(MUTEON_KEY, not value)
         
     @property
     def mode(self):
@@ -115,13 +113,14 @@ class PyDreoHumidifier(PyDreoBaseDevice):
             return None
         return str_value
 
-    @mode.setter
-    def mode(self, value: str) -> None:
+    async def async_set_mode(self, value: str) -> None:
+        """Set the mode asynchronously."""
+        _LOGGER.debug("PyDreoHumidifier:async_set_mode(%s) --> %s", self.name, value)
         numeric_value = Helpers.value_from_name(self._modes, value)
         if numeric_value is not None:
-            self._send_command(MODE_KEY, numeric_value)
+            await self._send_command(MODE_KEY, numeric_value)
         else:
-            raise ValueError(f"Preset mode {value} is not in the acceptable list: {self._modes}")
+            raise ValueError(f"Preset mode {value} is not in the acceptable list: {self.modes}")
 
     def update_state(self, state: dict):
         """Process the state dictionary from the REST API."""

@@ -113,22 +113,27 @@ class PyDreoCeilingFan(PyDreoFanBase):
         _LOGGER.debug("PyDreoFan:Detected preset modes - %s", preset_modes)
         return preset_modes
 
-    @PyDreoFanBase.is_on.setter
-    def is_on(self, value: bool):
+    # Note: is_on getter is inherited from PyDreoFanBase
+    # The setter for is_on in PyDreoFanBase was:
+    # @is_on.setter
+    # def is_on(self, value: bool): ... self._send_command(self._power_on_key, value)
+    # Here, we provide an async version for the ceiling fan's specific FANON_KEY.
+    async def async_set_is_on(self, value: bool): # Overrides/implements for ceiling fan
         """Set if the fan is on or off"""
-        _LOGGER.debug("PyDreoFan:is_on.setter - %s", value)
-        self._send_command(FANON_KEY, value)
+        _LOGGER.debug("PyDreoCeilingFan:async_set_is_on - %s", value)
+        # self._is_on = bool(value) # Optimistic update removed, rely on state updates
+        await self._send_command(FANON_KEY, bool(value))
 
     @property
     def light_on(self):
         """Returns `True` if the device light is on, `False` otherwise."""
         return self._light_on
 
-    @light_on.setter
-    def light_on(self, value: bool):
-        """Set if the fan is on or off"""
-        _LOGGER.debug("PyDreoCeilingFan:light_on.setter - %s", value)
-        self._send_command(LIGHTON_KEY, value)
+    async def async_set_light_on(self, value: bool):
+        """Set if the light is on or off"""
+        _LOGGER.debug("PyDreoCeilingFan:async_set_light_on - %s", value)
+        # self._light_on = value # Optimistic update removed
+        await self._send_command(LIGHTON_KEY, value)
 
     @property
     def oscillating(self) -> bool:
@@ -147,11 +152,16 @@ class PyDreoCeilingFan(PyDreoFanBase):
     def brightness(self, value: int):
         """Set the brightness of the light."""
         _LOGGER.debug("PyDreoCeilingFan:brightness.setter - %s", value)
-        self._send_command(BRIGHTNESS_KEY, value)
-        # Assuming command is successful, update local state. 
-        # Alternatively, wait for handle_server_update or update_state
-        self._brightness = value
+        # This is now an async method, the original setter logic is moved to async_set_brightness
+        # The original setter also optimistically updated self._brightness, which will be removed.
+        raise AttributeError("Use async_set_brightness to set the brightness.")
 
+    async def async_set_brightness(self, value: int):
+        """Set the brightness of the light asynchronously."""
+        _LOGGER.debug("PyDreoCeilingFan:async_set_brightness - %s", value)
+        # Add any validation if necessary, e.g., range checks if known
+        await self._send_command(BRIGHTNESS_KEY, value)
+        # self._brightness = value # Optimistic update removed
 
     @property
     def color_temp(self) -> int | None:
@@ -162,20 +172,28 @@ class PyDreoCeilingFan(PyDreoFanBase):
     def color_temp(self, value: int):
         """Set the color temperature of the light."""
         _LOGGER.debug("PyDreoCeilingFan:color_temp.setter - %s", value)
-        self._send_command(COLOR_TEMP_KEY, value)
-        self._color_temp = value
+        # This is now an async method, the original setter logic is moved to async_set_color_temp
+        # The original setter also optimistically updated self._color_temp, which will be removed.
+        raise AttributeError("Use async_set_color_temp to set the color temperature.")
+
+    async def async_set_color_temp(self, value: int):
+        """Set the color temperature of the light asynchronously."""
+        _LOGGER.debug("PyDreoCeilingFan:async_set_color_temp - %s", value)
+        # Add any validation if necessary
+        await self._send_command(COLOR_TEMP_KEY, value)
+        # self._color_temp = value # Optimistic update removed
 
     @property
     def rgb_color(self) -> tuple[int, int, int] | None:
         """Return the RGB color of the light."""
         return self._rgb_color
 
-    @rgb_color.setter
-    def rgb_color(self, value: tuple[int, int, int]):
-        """Set the RGB color of the light."""
-        _LOGGER.debug("PyDreoCeilingFan:rgb_color.setter - %s", value)
-        self._send_command(RGB_COLOR_KEY, value)
-        self._rgb_color = value
+    async def async_set_rgb_color(self, value: tuple[int, int, int]):
+        """Set the RGB color of the light asynchronously."""
+        _LOGGER.debug("PyDreoCeilingFan:async_set_rgb_color - %s", value)
+        # Add any validation if necessary
+        await self._send_command(RGB_COLOR_KEY, value)
+        # self._rgb_color = value # Optimistic update removed
     
     def update_state(self, state: dict):
         """Process the state dictionary from the REST API."""

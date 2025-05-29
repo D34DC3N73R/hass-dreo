@@ -76,11 +76,10 @@ class PyDreoHeater(PyDreoBaseDevice):
         """Returns `True` if the device is on, `False` otherwise."""
         return self._is_on
 
-    @poweron.setter
-    def poweron(self, value: bool):
-        """Set if the heater is on or off"""
-        _LOGGER.debug("PyDreoHeater:poweron.setter - %s", value)
-        self._send_command(POWERON_KEY, value)
+    async def async_set_poweron(self, value: bool):
+        """Set if the heater is on or off asynchronously."""
+        _LOGGER.debug("PyDreoHeater:async_set_poweron - %s", value)
+        await self._send_command(POWERON_KEY, value)
 
     @property
     def heat_range(self):
@@ -102,27 +101,27 @@ class PyDreoHeater(PyDreoBaseDevice):
         """Returns `True` if devon is true, `False` otherwise. Whatever devon is"""
         return self._dev_on
 
-    @devon.setter
-    def devon(self, value: bool):
-        _LOGGER.debug("PyDreoHeater:dev_on.setter - %s", value)
-        self._send_command(DEVON_KEY, value)
+    async def async_set_devon(self, value: bool):
+        _LOGGER.debug("PyDreoHeater:async_set_devon - %s", value)
+        await self._send_command(DEVON_KEY, value)
 
     @property
     def htalevel(self):
         """Return the current heat level"""
         return self._htalevel
 
-    @htalevel.setter
-    def htalevel(self, htalevel : int) :
-        """Set the heat level."""
-        _LOGGER.debug("PyDreoHeater:htalevel.setter(%s, %s)", self.name, htalevel)
-        if (self._device_definition.device_ranges[HEAT_RANGE][0] > htalevel > self._device_definition.device_ranges[HEAT_RANGE][1]):
+    async def async_set_htalevel(self, htalevel : int) :
+        """Set the heat level asynchronously."""
+        _LOGGER.debug("PyDreoHeater:async_set_htalevel(%s, %s)", self.name, htalevel)
+        heat_range = self._device_definition.device_ranges.get(HEAT_RANGE)
+        if not heat_range or not (heat_range[0] <= htalevel <= heat_range[1]):
             _LOGGER.error("Heat level %s is not in the acceptable range: %s",
                             htalevel,
-                            self._device_definition.device_ranges[HEAT_RANGE])
+                            heat_range)
+            # Consider raising ValueError for invalid input
             return
-        self.mode = HEATER_MODE_HOTAIR
-        self._send_command(HTALEVEL_KEY, htalevel)
+        await self.async_set_mode(HEATER_MODE_HOTAIR) # Ensure mode is set to hotair
+        await self._send_command(HTALEVEL_KEY, htalevel)
 
     @property 
     def ecolevel_range(self):
@@ -134,58 +133,68 @@ class PyDreoHeater(PyDreoBaseDevice):
         """Return the current target temperature"""
         return self._ecolevel
 
-    @ecolevel.setter
-    def ecolevel(self, ecolevel : int):
-        """Set the target temperature."""
-        _LOGGER.debug("PyDreoHeater:ecolevel(%s)", ecolevel)
-        if self._device_definition.device_ranges[ECOLEVEL_RANGE][0] > ecolevel > self._device_definition.device_ranges[ECOLEVEL_RANGE][1]:
+    async def async_set_ecolevel(self, ecolevel : int):
+        """Set the target temperature asynchronously."""
+        _LOGGER.debug("PyDreoHeater:async_set_ecolevel(%s)", ecolevel)
+        ecolevel_range = self._device_definition.device_ranges.get(ECOLEVEL_RANGE)
+        if not ecolevel_range or not (ecolevel_range[0] <= ecolevel <= ecolevel_range[1]):
             _LOGGER.error("Target Temperature %s is not in the acceptable range: %s",
                             ecolevel,
-                            self._device_definition.device_ranges[ECOLEVEL_RANGE])
+                            ecolevel_range)
+            # Consider raising ValueError
             return
-        self._send_command(ECOLEVEL_KEY, ecolevel)
+        await self._send_command(ECOLEVEL_KEY, ecolevel)
 
     @property
     def preset_mode(self):
         """Return the current preset mode."""
-        return LEVEL_MODE_MAP[self._htalevel]
+        if self._htalevel in LEVEL_MODE_MAP: # Check if key exists
+            return LEVEL_MODE_MAP[self._htalevel]
+        return None # Or some default/unknown state
 
     @property
     def mode(self):
         """Return the current preset mode."""
         return self._mode
 
-    @preset_mode.setter
-    def preset_mode(self, level: str) -> None:
-        _LOGGER.debug("PyDreoHeater:set_preset_mode(%s)", level)
-        if level in self.preset_modes:
-            # Don't need self.mode = HEATER_MODE_HOTAIR because the htalevel setter will set the mode
-            self.htalevel = MODE_LEVEL_MAP[level]
+    async def async_set_preset_mode(self, level: str) -> None:
+        _LOGGER.debug("PyDreoHeater:async_set_preset_mode(%s)", level)
+        if self.preset_modes and level in self.preset_modes:
+            # The original htalevel setter also set self.mode = HEATER_MODE_HOTAIR
+            # This will now be handled by async_set_htalevel.
+            await self.async_set_htalevel(MODE_LEVEL_MAP[level])
         else:
             _LOGGER.error("Preset mode %s is not in the acceptable list: %s",
                             level,
-                            self._device_definition.preset_modes)
+                            self.preset_modes)
             raise ValueError(f"preset_mode must be one of: {self.preset_modes}")
 
-    @mode.setter
-    def mode(self, mode: str) -> None:
-        _LOGGER.debug("PyDreoHeater:mode(%s) --> %s", self.name, mode)
-        # setting heater mode to OFF is redundand because 'poweron' will be set
+    async def async_set_mode(self, mode: str) -> None:
+        _LOGGER.debug("PyDreoHeater:async_set_mode(%s) --> %s", self.name, mode)
+        if mode not in self.hvac_modes: # Assuming self.hvac_modes holds valid modes
+            _LOGGER.error(f"Mode {mode} is not a valid HVAC mode: {self.hvac_modes}")
+            raise ValueError(f"Mode must be one of: {self.hvac_modes}")
+        # setting heater mode to OFF is redundant because 'poweron' will be set
         # and can prevent it from properly turning back on (tested on DR-HSH004S)
         if not mode == HEATER_MODE_OFF:
-            self._send_command(MODE_KEY, mode)
+            await self._send_command(MODE_KEY, mode)
+        # If mode is HEATER_MODE_OFF, typically this means turning the device off.
+        # This should be handled by async_set_poweron(False).
+        # The logic here depends on how the device interprets MODE_KEY when set to "off".
+        # For now, we only send the command if it's not HEATER_MODE_OFF.
 
     @property
     def fan_mode(self) -> str:
         """Return the current fan mode - if on, it means that we're in 'coolair' mode"""
         if self._mode is not None:
             return FAN_ON if self._mode == HEATER_MODE_COOLAIR else FAN_OFF
+        return FAN_OFF # Default if mode is None
 
-    @fan_mode.setter
-    def fan_mode(self, mode: bool) -> None:
-        """Set coolair mode if requested"""
+    async def async_set_fan_mode(self, mode: bool) -> None:
+        """Set coolair mode if requested asynchronously."""
         # TODO: set the state back to what it was before it was turned on (i.e., hotair or eco)
-        self.mode = HEATER_MODE_COOLAIR if mode is True else HEATER_MODE_HOTAIR
+        target_mode = HEATER_MODE_COOLAIR if mode is True else HEATER_MODE_HOTAIR
+        await self.async_set_mode(target_mode)
 
     @property
     def temperature(self):
@@ -211,13 +220,11 @@ class PyDreoHeater(PyDreoBaseDevice):
         """Returns `True` if oscillation is on."""
         return self._oscon
 
-    @oscon.setter
-    def oscon(self, value: bool) -> None:
-
-        """Enable or disable oscillation"""
-        _LOGGER.debug("PyDreoHeater:oscon.setter(%s) -> %s", self.name, value)
-        if self._oscon is not None:
-            self._send_command(OSCON_KEY, value)
+    async def async_set_oscon(self, value: bool) -> None:
+        """Enable or disable oscillation asynchronously."""
+        _LOGGER.debug("PyDreoHeater:async_set_oscon(%s) -> %s", self.name, value)
+        if self._oscon is not None: # Check based on state attribute
+            await self._send_command(OSCON_KEY, value)
         else:
             _LOGGER.error("Attempting to set oscillation on on a device that doesn't support it.")
             raise ValueError("Attempting to set oscillation on on a device that doesn't support it.")
@@ -227,79 +234,70 @@ class PyDreoHeater(PyDreoBaseDevice):
         """Get the oscillation angle"""
         return self._oscangle
 
-    @oscangle.setter
-    def oscangle(self, value: int) -> None:
-        "Set the oscillation angle. I assume 0 means it oscillates"
-        _LOGGER.debug("PyDreoHeater:oscangle.setter(%s) -> %d", self.name, value)
-        if self._oscangle is not None:
-            self._send_command(OSCANGLE_KEY, value)
+    async def async_set_oscangle(self, value: int) -> None:
+        "Set the oscillation angle asynchronously. I assume 0 means it oscillates"
+        _LOGGER.debug("PyDreoHeater:async_set_oscangle(%s) -> %d", self.name, value)
+        if self._oscangle is not None: # Check based on state attribute
+            await self._send_command(OSCANGLE_KEY, value)
         else:
             _LOGGER.error("Attempting to set oscillation angle on a device that doesn't support it.")
-            return
+            return # Or raise error
 
     @property
     def ptcon(self) -> bool:
         """Returns `True` if PTC is on."""
         return self._ptc_on
 
-    @ptcon.setter
-    def ptcon(self, value: bool) -> None:
-
-        """Enable or disable PTC"""
-        _LOGGER.debug("PyDreoHeater:ptcon.setter(%s) --> %s", self.name, value)
-        if self._ptc_on is not None:
-            self._send_command(PTCON_KEY, value)
+    async def async_set_ptcon(self, value: bool) -> None:
+        """Enable or disable PTC asynchronously."""
+        _LOGGER.debug("PyDreoHeater:async_set_ptcon(%s) --> %s", self.name, value)
+        if self._ptc_on is not None: # Check based on state attribute
+            await self._send_command(PTCON_KEY, value)
         else:
             _LOGGER.error("Attempting to set PTC on on a device that doesn't support it.")
-            return
+            return # Or raise error
 
     @property
     def lighton(self) -> bool:
         """Returns `True` if Display Auto off is OFF."""
-        return not self._light_on
+        return not self._light_on if self._light_on is not None else None # Ensure None propagation
 
-    @lighton.setter
-    def lighton(self, value: bool) -> None:
-
-        """Enable or disable light"""
-        _LOGGER.debug("PyDreoHeater:lighton.setter(%s) --> %s", self.name, value)
-        if self._light_on is not None:
-            self._send_command(LIGHTON_KEY, not value)
+    async def async_set_lighton(self, value: bool) -> None:
+        """Enable or disable light (Display Auto Off) asynchronously."""
+        _LOGGER.debug("PyDreoHeater:async_set_lighton(%s) --> %s (sets led to %s)", self.name, value, not value)
+        if self._light_on is not None: # Check based on state attribute
+            await self._send_command(LIGHTON_KEY, not value) # Note: value is inverted for this command
         else:
             _LOGGER.error("Attempting to set Display Auto Off on a device that doesn't support it.")
-            return
+            return # Or raise error
 
     @property
     def ctlstatus(self) -> bool:
         """Returns `True` if ctlstatus is on."""
         return self._ctlstatus
 
-    @ctlstatus.setter
-    def ctlstatus(self, value: bool) -> None:
-
-        """Enable or disable ctlstatus"""
-        _LOGGER.debug("PyDreoHeater:ctlstatus.setter(%s) --> %s", self.name, value)
-        if self._ctlstatus is not None:
-            self._send_command(CTLSTATUS_KEY, value)
+    async def async_set_ctlstatus(self, value: bool) -> None:
+        """Enable or disable ctlstatus asynchronously."""
+        _LOGGER.debug("PyDreoHeater:async_set_ctlstatus(%s) --> %s", self.name, value)
+        if self._ctlstatus is not None: # Check based on state attribute
+            await self._send_command(CTLSTATUS_KEY, value)
         else:
             _LOGGER.error("Attempting to set ctlstatus on on a device that doesn't support it.")
-            return
+            return # Or raise error
 
     @property
     def childlockon(self) -> bool:
         """Returns `True` if Child Lock is on."""
         return self._childlockon
 
-    @childlockon.setter
-    def childlockon(self, value: bool) -> None:
-
-        """Enable or disable Child Lock"""
-        _LOGGER.debug("PyDreoHeater:childlockon.setter(%s) --> %s", self.name, value)
-        if self._childlockon is not None:
-            self._send_command(CHILDLOCKON_KEY, value)
+    async def async_set_childlockon(self, value: bool) -> None:
+        """Enable or disable Child Lock asynchronously."""
+        _LOGGER.debug("PyDreoHeater:async_set_childlockon(%s) --> %s", self.name, value)
+        if self._childlockon is not None: # Check based on state attribute
+            await self._send_command(CHILDLOCKON_KEY, value)
         else:
             _LOGGER.error("Attempting to set child lock on on a device that doesn't support it.")
-            return
+            return # Or raise error
 
     @property
     def panel_sound(self) -> bool:
@@ -308,17 +306,16 @@ class PyDreoHeater(PyDreoBaseDevice):
             return not self._mute_on
         return None
 
-    @panel_sound.setter
-    def panel_sound(self, value: bool) -> None:
-        """Set if the panel sound"""
-        _LOGGER.debug("PyDreoHeater:panel_sound.setter(%s) --> %s", self.name, value)
+    async def async_set_panel_sound(self, value: bool) -> None:
+        """Set if the panel sound asynchronously."""
+        _LOGGER.debug("PyDreoHeater:async_set_panel_sound(%s) --> %s", self.name, value)
 
-        if self._mute_on is not None and value is not None:
+        if self._mute_on is not None and value is not None: # Check based on state attribute
             _LOGGER.debug("Setting _muteon to %s", not value)
-            self._send_command(MUTEON_KEY, not value)
+            await self._send_command(MUTEON_KEY, not value)
         else:
             _LOGGER.error("Attempting to set panel_sound on a device that doesn't support.")
-            return
+            return # Or raise error
 
 
     def update_state(self, state: dict) :
