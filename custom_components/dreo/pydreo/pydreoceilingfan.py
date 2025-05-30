@@ -223,11 +223,11 @@ class PyDreoCeilingFan(PyDreoFanBase):
         val_light_on = self.get_server_update_key_value(message, LIGHTON_KEY)
         if isinstance(val_light_on, bool):
             self._light_on = val_light_on
-        
+
         val_brightness = self.get_server_update_key_value(message, BRIGHTNESS_KEY)
         if isinstance(val_brightness, int):
             self._brightness = val_brightness
-        
+
         val_color_temp = self.get_server_update_key_value(message, COLOR_TEMP_KEY)
         if isinstance(val_color_temp, int):
             self._color_temp = val_color_temp

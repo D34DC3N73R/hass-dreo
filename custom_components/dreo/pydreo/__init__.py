@@ -449,7 +449,7 @@ class PyDreo:  # pylint: disable=function-redefined
         # Construct the payload, using device.serial_number and Helpers.api_timestamp()
         # for consistency with the synchronous send_command method.
         payload = {
-            "devicesn": device.serial_number, 
+            "devicesn": device.serial_number,
             "method": "control",
             "params": params,
             "timestamp": Helpers.api_timestamp(),

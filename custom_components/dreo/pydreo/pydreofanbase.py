@@ -128,7 +128,7 @@ class PyDreoFanBase(PyDreoBaseDevice):
         """Set if the fan is on or off"""
         _LOGGER.debug("PyDreoFanBase:async_set_is_on - %s", value)
         # Retain direct update of self._is_on as per subtask instruction for this specific setter.
-        self._is_on = bool(value) 
+        self._is_on = bool(value)
         await self._send_command(self._power_on_key, bool(value))
 
     @property
@@ -174,7 +174,7 @@ class PyDreoFanBase(PyDreoBaseDevice):
         # Determine which key to use based on device state
         # This logic was part of the original setter.
         if self._wind_type is not None and WINDTYPE_KEY in self._feature_key_names: # Check if feature is mapped
-            key = self._feature_key_names[WINDTYPE_KEY] 
+            key = self._feature_key_names[WINDTYPE_KEY]
         elif self._wind_mode is not None and WIND_MODE_KEY in self._feature_key_names: # Check if feature is mapped
             key = self._feature_key_names[WIND_MODE_KEY]
         elif self._wind_type is not None: # Fallback if not in feature_key_names but state exists
@@ -314,7 +314,7 @@ class PyDreoFanBase(PyDreoBaseDevice):
         if self._pm25 is not None: # Check based on existence of the state attribute
             # This is likely a read-only sensor, sending a command might not be supported by device.
             # Forcing the pattern application as per subtask.
-            await self._send_command(PM25_KEY, value) 
+            await self._send_command(PM25_KEY, value)
         else:
             raise NotImplementedError("PyDreoFanBase: Attempting to set pm25 on a device that doesn't support or is read-only.")
 

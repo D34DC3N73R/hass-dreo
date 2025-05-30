@@ -197,7 +197,7 @@ class CommandTransport:
             except Exception as e: # Catch other potential exceptions during send
                 _LOGGER.error("Error sending command: %s. Retrying in %s seconds. Retry count: %s/%s",
                               e, RETRY_DELAY, retry_count + 1, MAX_RETRY_COUNT)
-            
+
             retry_count += 1
             if retry_count < MAX_RETRY_COUNT:
                 await asyncio.sleep(RETRY_DELAY)

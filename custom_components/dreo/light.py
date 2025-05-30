@@ -37,10 +37,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Dreo light platform."""
     _LOGGER.info("Setting up Dreo Light platform.")
-    
+
     pydreo_manager = hass.data[DOMAIN][PYDREO_MANAGER]
     devices = pydreo_manager.devices
-    
+
     light_entities = []
     for device in devices:
         # Assuming DR-HCF models are ceiling fans and have a 'light_on' attribute
@@ -64,20 +64,20 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         self.pydreo_device: PyDreoCeilingFan = pydreo_device # For type hinting
         self._attr_name = f"{self.pydreo_device.name} Light"
         self._attr_unique_id = f"{self.pydreo_device.device_id}-light" # Changed from unique_id to device_id
-        
+
         # Determine supported features based on color modes
-        current_color_modes = self.supported_color_modes 
-        
+        current_color_modes = self.supported_color_modes
+
         _LOGGER.debug(f"Device {self.name} [DreoLightHA.__init__]: Initializing with supported_color_modes: {current_color_modes}")
 
         if current_color_modes and current_color_modes != {ColorMode.ONOFF}:
-            self._attr_supported_features = LightEntityFeature.SUPPORT_BRIGHTNESS
+            self._attr_supported_features = LightEntityFeature.BRIGHTNESS # Changed to BRIGHTNESS
             # In the future, if effects or other features are added:
             # if ColorMode.EFFECT in current_color_modes: # Assuming EFFECT is a ColorMode
-            # self._attr_supported_features |= LightEntityFeature.SUPPORT_EFFECT 
+            # self._attr_supported_features |= LightEntityFeature.SUPPORT_EFFECT
         else:
             self._attr_supported_features = LightEntityFeature(0)
-        
+
         _LOGGER.info(
             f"Initializing DreoLightHA: {self._attr_name} (Unique ID: {self._attr_unique_id}) "
             f"Supported Color Modes: {current_color_modes}, Supported Features: {self._attr_supported_features}"
@@ -120,7 +120,7 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         ]):
             _LOGGER.debug(f"{self.name}: Color temp range attributes not fully defined on pydreo_device.")
             return None
-        
+
         # Avoid division by zero if Kelvin range is invalid (min == max)
         if self.pydreo_device.min_kelvin == self.pydreo_device.max_kelvin:
             if kelvin_value == self.pydreo_device.min_kelvin: # If single value, it must match
@@ -138,7 +138,7 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         clamped_k = max(k_min, min(kelvin_value, k_max))
         percentage = (clamped_k - k_min) / (k_max - k_min)
         device_value = d_min + percentage * (d_max - d_min)
-        
+
         return round(max(d_min, min(device_value, d_max)))
 
     def _device_range_to_kelvin(self, device_value: int) -> int | None:
@@ -168,7 +168,7 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         clamped_d = max(d_min, min(device_value, d_max))
         percentage = (clamped_d - d_min) / (d_max - d_min)
         kelvin_value = k_min + percentage * (k_max - k_min)
-        
+
         return round(max(k_min, min(kelvin_value, k_max)))
 
     @property
@@ -177,7 +177,7 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         device_native_value = self.pydreo_device.color_temp
         if device_native_value is None or not self.pydreo_device.supports_color_temp:
             return None
-        
+
         kelvin_value = self._device_range_to_kelvin(device_native_value)
         if kelvin_value is None:
             _LOGGER.warning(
@@ -187,7 +187,7 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
                 f"Kelvin range: {self.pydreo_device.min_kelvin}-{self.pydreo_device.max_kelvin}"
             )
         return kelvin_value
-        
+
     @property
     def hs_color(self) -> tuple[float, float] | None:
         """Return the hs color value."""
@@ -207,27 +207,27 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
             modes.add(ColorMode.HS)
             # Per HA docs, HS implies BRIGHTNESS
             modes.add(ColorMode.BRIGHTNESS)
-        
+
         if self.pydreo_device.supports_color_temp:
             modes.add(ColorMode.COLOR_TEMP)
             # Per HA docs, COLOR_TEMP implies BRIGHTNESS
             modes.add(ColorMode.BRIGHTNESS)
-        
+
         # If brightness is supported independently (e.g., a dimmable white light)
         # and not already added due to HS or ColorTemp having added it.
         # This also covers the case where only brightness is supported.
         if self.pydreo_device.supports_brightness:
             modes.add(ColorMode.BRIGHTNESS)
-            
+
         # If, after all checks, no modes for HS, COLOR_TEMP, or BRIGHTNESS are added,
         # then it's an ONOFF-only light.
         if not modes:
-            # This case implies self.pydreo_device.supports_brightness, 
-            # self.pydreo_device.supports_color_temp, and 
+            # This case implies self.pydreo_device.supports_brightness,
+            # self.pydreo_device.supports_color_temp, and
             # self.pydreo_device.supports_rgb are all False.
             # Such a light would only support on/off.
             return {ColorMode.ONOFF}
-        
+
         # _LOGGER.debug is already present in the file from a previous change.
         # You can keep or remove the _LOGGER.debug line for the final version as preferred.
         # For this subtask, ensure the core logic above is implemented.
@@ -297,14 +297,14 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
                 # Assuming pydreo_device.async_set_color_temp handles clearing rgb_color if necessary
             else:
                 _LOGGER.warning(f"Could not map Kelvin value {kelvin_value} to device range for {self.name}")
-        
+
         # Brightness can be set in conjunction with color or independently
         if ATTR_BRIGHTNESS in kwargs and ColorMode.BRIGHTNESS in self.supported_color_modes:
             ha_brightness = kwargs[ATTR_BRIGHTNESS]
             # Scale HA's 0-255 to device's 1-100
             device_brightness = round((ha_brightness / HA_BRIGHTNESS_MAX) * (DEVICE_BRIGHTNESS_MAX - DEVICE_BRIGHTNESS_MIN)) + DEVICE_BRIGHTNESS_MIN
             device_brightness = max(DEVICE_BRIGHTNESS_MIN, min(device_brightness, DEVICE_BRIGHTNESS_MAX))
-            
+
             _LOGGER.debug(f"Setting brightness for {self.name} to {ha_brightness} (HA) -> {device_brightness} (Device)")
             await self.pydreo_device.async_set_brightness(device_brightness)
         elif not kwargs and not self.pydreo_device.brightness and ColorMode.BRIGHTNESS in self.supported_color_modes:

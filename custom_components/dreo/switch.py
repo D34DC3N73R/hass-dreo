@@ -115,7 +115,7 @@ def get_entries(pydreo_devices : list[PyDreoBaseDevice]) -> list[DreoSwitchHA]:
             if pydreo_device.is_feature_supported(switch_definition.attr_name):
                 # Check if this is the light switch for a DR-HCF ceiling fan
                 if (switch_definition.attr_name == "light_on" and
-                        hasattr(pydreo_device, 'type') and 
+                        hasattr(pydreo_device, 'type') and
                         pydreo_device.type == DreoDeviceType.CEILING_FAN and
                         pydreo_device.model and
                         pydreo_device.model.startswith("DR-HCF")):
@@ -129,8 +129,8 @@ def get_entries(pydreo_devices : list[PyDreoBaseDevice]) -> list[DreoSwitchHA]:
                     # A potential issue if, for example, one device supports 'ledpotkepton' and another 'light_on'
                     # both mapping to key "Light". The first one encountered would be added.
                     # For DR-HCF, we've already skipped "light_on", so "ledpotkepton" (if supported) would still be checked.
-                    _LOGGER.warning("Switch:get_entries: Duplicate switch key '%s' for device '%s'. Skipping add for attr_name '%s'. Existing switch uses attr_name for this key: %s", 
-                                   switch_definition.key, pydreo_device.name, switch_definition.attr_name, 
+                    _LOGGER.warning("Switch:get_entries: Duplicate switch key '%s' for device '%s'. Skipping add for attr_name '%s'. Existing switch uses attr_name for this key: %s",
+                                   switch_definition.key, pydreo_device.name, switch_definition.attr_name,
                                    next((s.entity_description.attr_name for s in switch_ha_collection if s.entity_description.key == switch_definition.key and s.pydreo_device == pydreo_device), "unknown"))
                     continue
                 
