@@ -65,24 +65,12 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         self._attr_name = f"{self.pydreo_device.name} Light"
         self._attr_unique_id = f"{self.pydreo_device.device_id}-light" # Changed from unique_id to device_id
 
-        # Determine supported features based on color modes
-        current_color_modes = self.supported_color_modes
-
-        _LOGGER.debug(f"Device {self.name} [DreoLightHA.__init__]: Initializing with supported_color_modes: {current_color_modes}")
-
-        if current_color_modes and current_color_modes != {ColorMode.ONOFF}:
-            self._attr_supported_features = LightEntityFeature.BRIGHTNESS # Changed to BRIGHTNESS
-            # In the future, if effects or other features are added:
-            # if ColorMode.EFFECT in current_color_modes: # Assuming EFFECT is a ColorMode
-            # self._attr_supported_features |= LightEntityFeature.SUPPORT_EFFECT
-        else:
-            self._attr_supported_features = LightEntityFeature(0)
-
+        # _attr_supported_features is no longer explicitly set here.
+        # It will be determined by the LightEntity base class based on
+        # the supported_color_modes property.
         _LOGGER.info(
-            f"Initializing DreoLightHA: {self._attr_name} (Unique ID: {self._attr_unique_id}) "
-            f"Supported Color Modes: {current_color_modes}, Supported Features: {self._attr_supported_features}"
+            f"Initializing DreoLightHA: {self._attr_name} (Unique ID: {self._attr_unique_id})"
         )
-
 
     @property
     def is_on(self) -> bool | None:
@@ -267,8 +255,20 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
 
         return ColorMode.ONOFF # Default if no other mode is active or determined
 
-    # The temporary supported_features property with logging has been removed.
-    # _attr_supported_features is now set in __init__.
+    @property
+    def supported_features(self) -> LightEntityFeature | None: # Base class property can return None
+        # Get the modes from our own property
+        current_modes = self.supported_color_modes
+        _LOGGER.debug(f"Device {self.name} [DreoLightHA.supported_features_DIAGNOSTIC]: supported_color_modes is: {current_modes}")
+
+        # Call the superclass's supported_features to see what it returns
+        # This is the value HA is actually using now that we don't set _attr_supported_features
+        s_features = super().supported_features
+        _LOGGER.debug(f"Device {self.name} [DreoLightHA.supported_features_DIAGNOSTIC]: super().supported_features returns: {s_features} (int: {int(s_features) if s_features is not None else 'None'})")
+
+        # For diagnostic purposes, we return what the superclass would return.
+        # This ensures we are only logging and not altering behavior with this temporary override.
+        return s_features
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on."""
