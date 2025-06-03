@@ -2,6 +2,7 @@
 
 import logging
 from typing import Any, Callable, List, Optional, Coroutine
+from dataclasses import dataclass
 
 from .haimports import * # pylint: disable=W0401,W0614
 from homeassistant.components.light import (
