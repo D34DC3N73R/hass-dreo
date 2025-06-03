@@ -321,4 +321,3 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         # Let's rely on the base class to call async_write_ha_state() if its update logic is generic enough,
         # otherwise, call it here explicitly if _attr_is_on (or other _attr_*) changes.
         # Added explicit call above.
-```
