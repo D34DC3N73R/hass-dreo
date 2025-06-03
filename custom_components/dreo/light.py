@@ -1,7 +1,7 @@
 """Support for Dreo Lights (fan lights, night lights)."""
 
 import logging
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Coroutine
 
 from .haimports import * # pylint: disable=W0401,W0614
 from homeassistant.components.light import (
@@ -22,9 +22,9 @@ from .dreobasedevice import DreoBaseDeviceHA
 from .const import (
     DOMAIN,
     LOGGER,
-    DREO_MANAGER,
+    PYDREO_MANAGER,
 )
-from pydreo.constant import REPORT_TO_HA_STATE_MAPPING_LIGHT, HA_TO_PYDREO_STATE_MAPPING_LIGHT
+# from pydreo.constant import REPORT_TO_HA_STATE_MAPPING_LIGHT, HA_TO_PYDREO_STATE_MAPPING_LIGHT # These do not exist
 
 _LOGGER = logging.getLogger(LOGGER)
 
@@ -106,7 +106,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Dreo Light platform."""
     _LOGGER.info("Setting up Dreo Light platform.")
-    pydreo_manager = hass.data[DOMAIN][DREO_MANAGER]
+    pydreo_manager = hass.data[DOMAIN][PYDREO_MANAGER]
 
     # Get pydreo devices from the manager that are already wrapped by DreoBaseDeviceHA or similar
     # This part might need adjustment based on how devices are stored and accessed in __init__.py
