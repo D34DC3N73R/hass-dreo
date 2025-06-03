@@ -6,12 +6,10 @@ from typing import Any, Callable, List, Optional
 from .haimports import * # pylint: disable=W0401,W0614
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS, # For future use
-    ATTR_COLOR_TEMP, # For future use
+    # ATTR_COLOR_TEMP, # For future use - Replaced by ATTR_COLOR_TEMP_KELVIN
     ATTR_RGB_COLOR,  # For future use
-    COLOR_MODE_ONOFF,
-    COLOR_MODE_BRIGHTNESS, # For future use
-    COLOR_MODE_COLOR_TEMP, # For future use
-    COLOR_MODE_RGB, # For future use
+    ATTR_COLOR_TEMP_KELVIN, # For future use
+    ColorMode, # New enum for color modes
     LightEntity,
     LightEntityDescription,
 )
@@ -20,7 +18,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .basedevice import DreoBaseDeviceHA
+from .dreobasedevice import DreoBaseDeviceHA
 from .const import (
     DOMAIN,
     LOGGER,
@@ -60,11 +58,20 @@ SUPPORTED_LIGHT_FEATURES = [
     ),
     # TODO: Add descriptions for brightness, color temp, RGB when pydreo supports them
     # Example for brightness (conceptual):
+    # TODO: Add descriptions for brightness, color temp, RGB when pydreo supports them
+    # Example for brightness (conceptual):
     # DreoLightEntityDescription(
     #     key="brightness",
     #     name="Brightness",
-    #     pydreo_brightness_attr="lightbrightness", # hypothetical pydreo attribute
-    #     # ... other LightEntityDescription fields for brightness
+    #     # pydreo_brightness_attr="lightbrightness", # hypothetical pydreo attribute
+    #     # supported_color_modes={ColorMode.BRIGHTNESS}, # Example
+    # ),
+    # Example for color temp (conceptual):
+    # DreoLightEntityDescription(
+    #     key="color_temp",
+    #     name="Color Temperature",
+    #     # pydreo_color_temp_attr="colortemp", # hypothetical pydreo attribute
+    #     # supported_color_modes={ColorMode.COLOR_TEMP}, # Example
     # ),
 ]
 
@@ -172,8 +179,8 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         self._set_fn = description.set_fn
 
         # Set supported color modes - only On/Off for now
-        self._attr_supported_color_modes = {COLOR_MODE_ONOFF}
-        self._attr_color_mode = COLOR_MODE_ONOFF # Current color mode
+        self._attr_supported_color_modes = {ColorMode.ONOFF}
+        self._attr_color_mode = ColorMode.ONOFF # Current color mode
 
         _LOGGER.debug("DreoLightHA initialized for %s", self.name)
         _LOGGER.debug("Light control attribute: %s", self._pydreo_light_control_attr)
@@ -248,9 +255,9 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         # if ATTR_BRIGHTNESS in kwargs:
         #     _LOGGER.debug("Setting brightness: %s (Not yet implemented)", kwargs[ATTR_BRIGHTNESS])
         #     # await self._pydreo_device.set_brightness(kwargs[ATTR_BRIGHTNESS]) # Future
-        # if ATTR_COLOR_TEMP in kwargs:
-        #     _LOGGER.debug("Setting color temp: %s (Not yet implemented)", kwargs[ATTR_COLOR_TEMP])
-        #     # await self._pydreo_device.set_color_temp(kwargs[ATTR_COLOR_TEMP]) # Future
+        # if ATTR_COLOR_TEMP_KELVIN in kwargs: # Updated constant
+        #     _LOGGER.debug("Setting color temp: %s (Not yet implemented)", kwargs[ATTR_COLOR_TEMP_KELVIN])
+        #     # await self._pydreo_device.set_color_temp(kwargs[ATTR_COLOR_TEMP_KELVIN]) # Future
         # if ATTR_RGB_COLOR in kwargs:
         #     _LOGGER.debug("Setting RGB color: %s (Not yet implemented)", kwargs[ATTR_RGB_COLOR])
         #     # await self._pydreo_device.set_rgb_color(kwargs[ATTR_RGB_COLOR]) # Future
@@ -287,8 +294,14 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
 
     # Ensure supported_color_modes is updated if brightness/color_temp/rgb are added
     # For example, if brightness is supported:
-    # self._attr_supported_color_modes = {COLOR_MODE_ONOFF, COLOR_MODE_BRIGHTNESS}
-    # self._attr_color_mode = COLOR_MODE_BRIGHTNESS
+    # self._attr_supported_color_modes = {ColorMode.ONOFF, ColorMode.BRIGHTNESS}
+    # self._attr_color_mode = ColorMode.BRIGHTNESS
+    # If color temp is supported:
+    # self._attr_supported_color_modes = {ColorMode.ONOFF, ColorMode.COLOR_TEMP}
+    # self._attr_color_mode = ColorMode.COLOR_TEMP
+    # If RGB is supported:
+    # self._attr_supported_color_modes = {ColorMode.ONOFF, ColorMode.RGB} # Or {ColorMode.RGB} if it implies on/off
+    # self._attr_color_mode = ColorMode.RGB
 
     @property
     def available(self) -> bool:
