@@ -79,7 +79,7 @@ SUPPORTED_LIGHT_FEATURES = [
 
 def get_light_entries(
     hass: HomeAssistant, pydreo_manager, pydreo_devices: list[DreoBaseDeviceHA]
-) -> list[DreoLightHA]:
+) -> list['DreoLightHA']:
     """Get Dreo light entities."""
     entities = []
     for pydreo_device in pydreo_devices:
