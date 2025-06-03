@@ -104,6 +104,14 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         platforms.add(Platform.SWITCH)
         platforms.add(Platform.NUMBER)
 
+    # Add light platform if any device supports it
+    # This assumes that fans with light functionality are correctly identified by PyDreo
+    # and have a property or method indicating light support.
+    # For now, we'll assume that if there's a ceiling fan, it might have a light.
+    # This logic might need refinement based on how PyDreo exposes light capabilities.
+    if DreoDeviceType.CEILING_FAN in device_types: # TODO: Refine this check
+        platforms.add(Platform.LIGHT)
+
     pydreo_manager.start_transport()
 
     hass.data[DOMAIN] = {}

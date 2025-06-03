@@ -8,6 +8,15 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/jeffsteinbok/hass-dreo/issues",  
   "loggers": ["dreo", "pydreo"],
+  "platforms": [
+    "fan",
+    "sensor",
+    "switch",
+    "number",
+    "climate",
+    "humidifier",
+    "light"
+  ],
   "requirements": ["websockets"],
   "version": "1.0.0"
 }

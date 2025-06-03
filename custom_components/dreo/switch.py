@@ -112,12 +112,17 @@ def get_entries(pydreo_devices : list[PyDreoBaseDevice]) -> list[DreoSwitchHA]:
         for switch_definition in SWITCHES:
             _LOGGER.debug("Switch:get_entries: checking attribute: %s on %s", switch_definition.attr_name, pydreo_device.name)
 
+            # Skip creating switches for attributes now handled by the light platform
+            if switch_definition.attr_name in ['ledpotkepton', 'light_on']:
+                _LOGGER.debug("Switch:get_entries: Skipping switch for %s on %s as it's handled by the light platform.", switch_definition.attr_name, pydreo_device.name)
+                continue
+
             if pydreo_device.is_feature_supported(switch_definition.attr_name):
                 if (switch_definition.key in switch_keys):
-                    _LOGGER.error("Switch:get_entries: Duplicate switch key %s", switch_definition.key)
+                    _LOGGER.error("Switch:get_entries: Duplicate switch key %s for device %s", switch_definition.key, pydreo_device.name)
                     continue
                 
-                _LOGGER.debug("Switch:get_entries: Adding switch %s", switch_definition.key)
+                _LOGGER.debug("Switch:get_entries: Adding switch %s (%s) for %s", switch_definition.key, switch_definition.attr_name, pydreo_device.name)
                 switch_keys.append(switch_definition.key)
                 switch_ha_collection.append(DreoSwitchHA(pydreo_device, switch_definition))
 
