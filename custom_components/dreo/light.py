@@ -167,7 +167,9 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         pydreo_device, # Type hint: PyDreoDevice from pydreo library
     ):
         """Initialize the Dreo light device."""
-        super().__init__(hass, pydreo_manager, pydreo_device)
+        self._hass = hass
+        self._pydreo_manager = pydreo_manager
+        super().__init__(pydreo_device)
         self.entity_description = description
         self._pydreo_device = pydreo_device # Store the raw pydreo device
 
