@@ -221,33 +221,26 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
             # or that pydreo's setters handle boolean conversion.
             # If pydreo expects "ON" / "OFF" strings:
             # value_to_set = HA_TO_PYDREO_STATE_MAPPING_LIGHT.get(state, "off")
-            # await self._pydreo_manager.update_device_state(self._pydreo_device.sn, self._pydreo_light_control_attr, value_to_set)
+            # await self._pydreo_manager.update_device_state(self._pydreo_device.serial_number, self._pydreo_light_control_attr, value_to_set)
 
             # Assuming direct boolean set or pydreo handles it via generic set_state
             # The DreoBaseDeviceHA should have a method to send updates.
             # Let's use a generic method from DreoBaseDeviceHA if it exists,
             # or call pydreo_manager directly.
-            # Example: await self.pydreo_manager.update_device_state(self.pydreo_device.sn, {self._pydreo_light_control_attr: state})
+            # Example: await self.pydreo_manager.update_device_state(self.pydreo_device.serial_number, {self._pydreo_light_control_attr: state})
 
-            # Using the set_state method from the PyDreoDevice object itself
-            if hasattr(self._pydreo_device, 'set_state'):
-                 # This is a generic method, need to check how it works for specific light attrs
-                 # It might be self._pydreo_device.set_state({self._pydreo_light_control_attr: state})
-                 # Or, pydreo might have specific methods like `set_light_on(True)`
-                 # For now, let's assume a generic `set_state` or direct attribute setting if simpler.
-                 # The PyDreo library seems to use `device.set_state(capability_name, value)`
-                 await self._hass.async_add_executor_job(
-                     self._pydreo_device.set_state, self._pydreo_light_control_attr, state
-                 )
-                 _LOGGER.info("Successfully set %s to %s for %s", self._pydreo_light_control_attr, state, self.name)
-            else:
-                _LOGGER.warning("Device %s does not have a 'set_state' method. Cannot control light %s.", self._pydreo_device.name, self.name)
+            # Assuming self._pydreo_light_control_attr holds the correct attribute name like "light_on"
+            # The actual command sending is handled by the property setter in the pydreo device class.
+            await self._hass.async_add_executor_job(
+                setattr, self._pydreo_device, self._pydreo_light_control_attr, state
+            )
+            _LOGGER.info("Attempted to set %s to %s for %s via property assignment", self._pydreo_light_control_attr, state, self.name)
 
         else:
             _LOGGER.warning("No control attribute or set function defined for %s", self.name)
 
         # After sending command, request an update to refresh HA state
-        await self._pydreo_manager.request_update(self._pydreo_device.serial_number)
+        # await self._pydreo_manager.request_update(self._pydreo_device.serial_number) # Removed as per request
 
 
     async def async_turn_on(self, **kwargs: Any) -> None:
