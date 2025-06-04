@@ -196,17 +196,21 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         self._value_fn = description.value_fn
         self._set_fn = description.set_fn
 
+        # Initialize HA state attributes that will be updated by coordinator
+        self._attr_brightness = None
+        self._attr_color_temp_kelvin = None
+
         # Initialize supported color modes
         self._attr_supported_color_modes = {ColorMode.ONOFF}
         current_color_mode = ColorMode.ONOFF
 
         if self.entity_description.pydreo_brightness_cmd:
             self._attr_supported_color_modes.add(ColorMode.BRIGHTNESS)
-            current_color_mode = ColorMode.BRIGHTNESS # Prioritize if available
+            current_color_mode = ColorMode.BRIGHTNESS
 
         if self.entity_description.pydreo_colortemp_cmd:
             self._attr_supported_color_modes.add(ColorMode.COLOR_TEMP)
-            current_color_mode = ColorMode.COLOR_TEMP # Prioritize Color Temp if available
+            current_color_mode = ColorMode.COLOR_TEMP # Prioritize Color Temp if both brightness and CT are available
             self._attr_min_color_temp_kelvin = self.entity_description.ha_min_color_temp_kelvin
             self._attr_max_color_temp_kelvin = self.entity_description.ha_max_color_temp_kelvin
 
@@ -274,58 +278,45 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on."""
         _LOGGER.debug("Turning on light: %s", self.name)
-        await self._set_pydreo_state(True) # Turn on the physical light switch first
+        await self._set_pydreo_state(True) # Ensure the light is physically on
 
         # Brightness handling
         if self.entity_description.pydreo_brightness_cmd and ATTR_BRIGHTNESS in kwargs:
             ha_brightness = kwargs[ATTR_BRIGHTNESS] # HA brightness is 0-255
             device_min, device_max = self.entity_description.pydreo_brightness_range
 
-            # Scale HA brightness (0-255) to device range (e.g., 1-100)
-            # Using percentage_to_ranged_value expects percentage (0-100) as input
-            ha_brightness_pct = (ha_brightness / 255) * 100
+            ha_brightness_pct = (ha_brightness / 255.0) * 100 # Use 255.0 for float division
             device_brightness = round(percentage_to_ranged_value((device_min, device_max), ha_brightness_pct))
-            # Clamp value just in case
-            device_brightness = max(device_min, min(device_max, device_brightness))
+            device_brightness = max(device_min, min(device_max, device_brightness)) # Clamp
 
             _LOGGER.debug("Setting brightness for %s: HA value %s -> Device value %s (%s)",
                           self.name, ha_brightness, device_brightness, self.entity_description.pydreo_brightness_cmd)
             await self._hass.async_add_executor_job(
-                self._pydreo_device._send_command, self.entity_description.pydreo_brightness_cmd, int(device_brightness)
+                setattr, self._pydreo_device, 'brightness', int(device_brightness) # Use property setter
             )
-            # Update HA's internal state for brightness
-            self._attr_brightness = ha_brightness # Store the HA value (0-255)
+            # self._attr_brightness = ha_brightness # Removed: state updated via _handle_coordinator_update
 
         # Color Temperature handling
         if self.entity_description.pydreo_colortemp_cmd and ATTR_COLOR_TEMP_KELVIN in kwargs:
             ha_kelvin = kwargs[ATTR_COLOR_TEMP_KELVIN]
+            min_k = self.entity_description.ha_min_color_temp_kelvin
+            max_k = self.entity_description.ha_max_color_temp_kelvin
+            pct_min, pct_max = self.entity_description.pydreo_colortemp_range
 
-            # Get device's percentage range for color temp (e.g., 0-100)
-            device_min_pct, device_max_pct = self.entity_description.pydreo_colortemp_range
-            # Get HA's Kelvin range for this light
-            ha_min_k = self.entity_description.ha_min_color_temp_kelvin
-            ha_max_k = self.entity_description.ha_max_color_temp_kelvin
-
-            # Scale HA Kelvin value to device's percentage range
-            # Ensure no division by zero if min_k == max_k
-            if ha_max_k == ha_min_k:
-                device_colortemp_pct = device_min_pct
+            if max_k == min_k:
+                device_colortemp_pct = pct_min
             else:
-                kelvin_pct_of_range = (ha_kelvin - ha_min_k) / (ha_max_k - ha_min_k)
-                device_colortemp_pct = round(
-                    kelvin_pct_of_range * (device_max_pct - device_min_pct) + device_min_pct
-                )
+                kelvin_as_pct_of_ha_range = ((ha_kelvin - min_k) / (max_k - min_k))
+                device_colortemp_pct = kelvin_as_pct_of_ha_range * (pct_max - pct_min) + pct_min
 
-            # Clamp value to device's percentage range
-            device_colortemp_pct = max(device_min_pct, min(device_max_pct, device_colortemp_pct))
+            device_colortemp_pct = round(max(pct_min, min(pct_max, device_colortemp_pct))) # Clamp
 
             _LOGGER.debug("Setting color temp for %s: HA Kelvin %s -> Device Pct %s (%s)",
                           self.name, ha_kelvin, device_colortemp_pct, self.entity_description.pydreo_colortemp_cmd)
             await self._hass.async_add_executor_job(
-                self._pydreo_device._send_command, self.entity_description.pydreo_colortemp_cmd, int(device_colortemp_pct)
+                setattr, self._pydreo_device, 'colortemp', int(device_colortemp_pct) # Use property setter
             )
-            # Update HA's internal state for color temp
-            self._attr_color_temp_kelvin = ha_kelvin # Store the HA Kelvin value
+            # self._attr_color_temp_kelvin = ha_kelvin # Removed: state updated via _handle_coordinator_update
 
         # if ATTR_RGB_COLOR in kwargs: # Placeholder for future RGB support
         #     _LOGGER.debug("Setting RGB color: %s (Not yet implemented)", kwargs[ATTR_RGB_COLOR])
@@ -339,18 +330,51 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
     @property
     def brightness(self) -> Optional[int]:
         """Return the brightness of this light between 0..255."""
-        if ColorMode.BRIGHTNESS not in self._attr_supported_color_modes: # Check internal attr
+        if not self.supported_color_modes or ColorMode.BRIGHTNESS not in self.supported_color_modes:
             return None
-        # As per instructions, returning self._attr_brightness managed by LightEntity
-        return self._attr_brightness
+
+        # Assumes PyDreoCeilingFan now has a 'brightness' property from the pydreo library changes
+        if self.entity_description.pydreo_brightness_cmd: # Still check if feature is configured
+            device_val = self._pydreo_device.brightness # Use the new property from pydreo device
+            if device_val is not None and self.entity_description.pydreo_brightness_range:
+                device_min, device_max = self.entity_description.pydreo_brightness_range
+                try:
+                    device_val_num = float(device_val)
+                    if device_max == device_min:
+                        return 255 if device_val_num >= device_min else 0
+                    val_percentage = ((device_val_num - device_min) / (device_max - device_min)) * 100
+                    val_percentage = max(0, min(100, val_percentage))
+                    return round((val_percentage / 100) * 255)
+                except ValueError:
+                    _LOGGER.warning("%s: Could not convert brightness value '%s' from device %s", self.name, device_val, self._pydreo_device.name)
+        return None # Fallback if device value is None or conversion failed
 
     @property
     def color_temp_kelvin(self) -> Optional[int]:
         """Return the CT color value in Kelvin."""
-        if ColorMode.COLOR_TEMP not in self._attr_supported_color_modes: # Check internal attr
+        if not self.supported_color_modes or ColorMode.COLOR_TEMP not in self.supported_color_modes:
             return None
-        # As per instructions, returning self._attr_color_temp_kelvin managed by LightEntity
-        return self._attr_color_temp_kelvin
+
+        # Assumes PyDreoCeilingFan now has a 'colortemp' property
+        if self.entity_description.pydreo_colortemp_cmd: # Still check if feature is configured
+            device_val_pct = self._pydreo_device.colortemp # Use the new property from pydreo device
+            if device_val_pct is not None and self.entity_description.pydreo_colortemp_range and \
+               self.entity_description.ha_min_color_temp_kelvin and self.entity_description.ha_max_color_temp_kelvin:
+                pct_min, pct_max = self.entity_description.pydreo_colortemp_range
+                min_k = self.entity_description.ha_min_color_temp_kelvin
+                max_k = self.entity_description.ha_max_color_temp_kelvin
+                try:
+                    device_val_pct_num = float(device_val_pct)
+                    if pct_max == pct_min:
+                         return min_k if device_val_pct_num <= pct_min else max_k
+                    # Scale device's 0-100% to HA's Kelvin range
+                    clamped_device_pct = max(pct_min, min(pct_max, device_val_pct_num)) # Ensure pct is within device range
+                    kelvin_pct_of_range = (clamped_device_pct - pct_min) / (pct_max - pct_min)
+                    kelvin = min_k + kelvin_pct_of_range * (max_k - min_k)
+                    return round(max(min_k, min(max_k, kelvin))) # Clamp to HA Kelvin range
+                except ValueError:
+                    _LOGGER.warning("%s: Could not convert color_temp value '%s' from device %s", self.name, device_val_pct, self._pydreo_device.name)
+        return None # Fallback if device value is None or conversion failed
 
     # Placeholder for rgb_color property (future)
     # @property
@@ -369,45 +393,33 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        # This method is called by the coordinator in DreoBaseDeviceHA
-        # Update the entity's state based on the new data in self._pydreo_device
-        new_state = self._get_pydreo_state()
-        _LOGGER.debug("Coordinator update for %s: new_state=%s, current_ha_state=%s", self.name, new_state, self._attr_is_on)
-        if self._attr_is_on != new_state:
-            self._attr_is_on = new_state
+        changed = False
+
+        # Update _attr_is_on (existing logic)
+        new_is_on = self._get_pydreo_state()
+        if self._attr_is_on != new_is_on:
+            self._attr_is_on = new_is_on
+            changed = True
+            _LOGGER.debug("Coordinator update for %s: is_on changed to %s", self.name, new_is_on)
+
+        # Update brightness
+        if self.supported_color_modes and ColorMode.BRIGHTNESS in self.supported_color_modes:
+            # Use the property getter which includes scaling from device's new property
+            current_brightness_ha = self.brightness # This calls the property getter
+            if self._attr_brightness != current_brightness_ha:
+                self._attr_brightness = current_brightness_ha
+                changed = True
+                _LOGGER.debug("Coordinator update for %s: brightness changed to %s", self.name, current_brightness_ha)
+
+        # Update color temp
+        if self.supported_color_modes and ColorMode.COLOR_TEMP in self.supported_color_modes:
+            # Use the property getter which includes scaling/conversion from device's new property
+            current_colortemp_k_ha = self.color_temp_kelvin # This calls the property getter
+            if self._attr_color_temp_kelvin != current_colortemp_k_ha:
+                self._attr_color_temp_kelvin = current_colortemp_k_ha
+                changed = True
+                _LOGGER.debug("Coordinator update for %s: color_temp_kelvin changed to %s", self.name, current_colortemp_k_ha)
+
+        if changed:
+            _LOGGER.debug("Coordinator update for %s: Calling async_write_ha_state() due to changes.", self.name)
             self.async_write_ha_state()
-        # Update other attributes like brightness, color_temp if they become available from device state.
-        # As per instructions, for now, we are not reading brightness/colortemp from the device state here,
-        # as pydreo library limitations make it unreliable. HA will use the last set values stored in
-        # self._attr_brightness and self._attr_color_temp_kelvin.
-
-        # If pydreo device state provided reliable brightness/colortemp:
-        # old_brightness = self._attr_brightness
-        # if ColorMode.BRIGHTNESS in self._attr_supported_color_modes and self.entity_description.pydreo_brightness_cmd:
-        #     device_val = getattr(self._pydreo_device, self.entity_description.pydreo_brightness_cmd, None)
-        #     if device_val is not None:
-        #         # Scale device_val (e.g. 1-100) to HA brightness (0-255)
-        #         dev_min_b, dev_max_b = self.entity_description.pydreo_brightness_range
-        #         self._attr_brightness = round( ((device_val - dev_min_b) / (dev_max_b - dev_min_b)) * 255 ) if dev_max_b != dev_min_b else 0
-        #
-        # old_color_temp = self._attr_color_temp_kelvin
-        # if ColorMode.COLOR_TEMP in self._attr_supported_color_modes and self.entity_description.pydreo_colortemp_cmd:
-        #     device_pct_val = getattr(self._pydreo_device, self.entity_description.pydreo_colortemp_cmd, None)
-        #     if device_pct_val is not None:
-        #         # Scale device_pct_val (e.g. 0-100) to HA Kelvin
-        #         dev_min_pct, dev_max_pct = self.entity_description.pydreo_colortemp_range
-        #         ha_min_k = self.entity_description.ha_min_color_temp_kelvin
-        #         ha_max_k = self.entity_description.ha_max_color_temp_kelvin
-        #         if dev_max_pct != dev_min_pct:
-        #              pct_of_range = (device_pct_val - dev_min_pct) / (dev_max_pct - dev_min_pct)
-        #              self._attr_color_temp_kelvin = round(pct_of_range * (ha_max_k - ha_min_k) + ha_min_k)
-        #         else:
-        #              self._attr_color_temp_kelvin = ha_min_k
-
-
-        # Only call async_write_ha_state if a relevant attribute changed.
-        # The is_on change is handled above. If brightness/colortemp were updated from device:
-        # if self._attr_is_on != new_state or self._attr_brightness != old_brightness or self._attr_color_temp_kelvin != old_color_temp:
-        #    self.async_write_ha_state()
-        # For now, only is_on change triggers write_ha_state from here.
-        # Brightness/ColorTemp changes via turn_on will trigger their own update via LightEntity base.

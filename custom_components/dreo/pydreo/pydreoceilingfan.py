@@ -7,6 +7,8 @@ from .constant import (
     LOGGER_NAME,
     FANON_KEY,
     LIGHTON_KEY,
+    BRIGHTNESS_KEY, # Added
+    COLORTEMP_KEY,  # Added
     WINDLEVEL_KEY,
     SPEED_RANGE,
 )
@@ -38,6 +40,8 @@ class PyDreoCeilingFan(PyDreoFanBase):
 
         self._fan_speed = None
         self._light_on = None
+        self._brightness = None # Added
+        self._colortemp = None  # Added
 
         self._wind_type = None
         self._wind_mode = None
@@ -83,6 +87,28 @@ class PyDreoCeilingFan(PyDreoFanBase):
         self._send_command(LIGHTON_KEY, value)
 
     @property
+    def brightness(self):
+        """Returns the current brightness of the light."""
+        return self._brightness
+
+    @brightness.setter
+    def brightness(self, value: int):
+        """Set the brightness of the light."""
+        _LOGGER.debug("PyDreoCeilingFan:brightness.setter - %s", value)
+        self._send_command(BRIGHTNESS_KEY, value)
+
+    @property
+    def colortemp(self):
+        """Returns the current color temperature percentage (0-100)."""
+        return self._colortemp
+
+    @colortemp.setter
+    def colortemp(self, value: int):
+        """Set the color temperature percentage (0-100)."""
+        _LOGGER.debug("PyDreoCeilingFan:colortemp.setter - %s", value)
+        self._send_command(COLORTEMP_KEY, value)
+
+    @property
     def oscillating(self) -> bool:
         return None
     
@@ -101,6 +127,8 @@ class PyDreoCeilingFan(PyDreoFanBase):
 
         self._is_on = self.get_state_update_value(state, FANON_KEY)
         self._light_on = self.get_state_update_value(state, LIGHTON_KEY)
+        self._brightness = self.get_state_update_value(state, BRIGHTNESS_KEY) # Added
+        self._colortemp = self.get_state_update_value(state, COLORTEMP_KEY)   # Added
 
     def handle_server_update(self, message):
         """Process a websocket update"""
@@ -113,4 +141,12 @@ class PyDreoCeilingFan(PyDreoFanBase):
 
         val_light_on = self.get_server_update_key_value(message, LIGHTON_KEY)
         if isinstance(val_light_on, bool):
-            self._light_on = val_light_on            
+            self._light_on = val_light_on
+
+        val_brightness = self.get_server_update_key_value(message, BRIGHTNESS_KEY)
+        if isinstance(val_brightness, int): # Assuming brightness is int
+            self._brightness = val_brightness
+
+        val_colortemp = self.get_server_update_key_value(message, COLORTEMP_KEY)
+        if isinstance(val_colortemp, int): # Assuming colortemp is int
+            self._colortemp = val_colortemp
