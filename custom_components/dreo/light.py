@@ -135,7 +135,7 @@ async def async_setup_entry(
 
     light_entities = []
     for pydreo_device in pydreo_manager.devices: # These are raw pydreo.PyDreoDevice objects
-        _LOGGER.debug("Light Setup: Checking device %s (%s) for light features.", pydreo_device.name, pydreo_device.sn)
+        _LOGGER.debug("Light Setup: Checking device %s (%s) for light features.", pydreo_device.name, pydreo_device.serial_number)
         for description in SUPPORTED_LIGHT_FEATURES:
             # Check if the raw pydreo device has the capability
             if description.pydreo_light_attr and hasattr(pydreo_device, description.pydreo_light_attr):
@@ -172,7 +172,7 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         self._pydreo_device = pydreo_device # Store the raw pydreo device
 
         # Set unique ID and name based on the main device and the light feature key
-        self._attr_unique_id = f"{self._pydreo_device.sn}-{self.entity_description.key}"
+        self._attr_unique_id = f"{self._pydreo_device.serial_number}-{self.entity_description.key}"
         self._attr_name = f"{self._pydreo_device.name} {self.entity_description.name}"
 
         self._pydreo_light_control_attr = description.pydreo_light_attr
@@ -245,7 +245,7 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
             _LOGGER.warning("No control attribute or set function defined for %s", self.name)
 
         # After sending command, request an update to refresh HA state
-        await self._pydreo_manager.request_update(self._pydreo_device.sn)
+        await self._pydreo_manager.request_update(self._pydreo_device.serial_number)
 
 
     async def async_turn_on(self, **kwargs: Any) -> None:
