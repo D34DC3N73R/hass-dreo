@@ -200,21 +200,35 @@ class DreoLightHA(DreoBaseDeviceHA, LightEntity):
         self._attr_brightness = None
         self._attr_color_temp_kelvin = None
 
-        # Initialize supported color modes
-        self._attr_supported_color_modes = {ColorMode.ONOFF}
-        current_color_mode = ColorMode.ONOFF
-
-        if self.entity_description.pydreo_brightness_cmd:
-            self._attr_supported_color_modes.add(ColorMode.BRIGHTNESS)
-            current_color_mode = ColorMode.BRIGHTNESS
-
-        if self.entity_description.pydreo_colortemp_cmd:
-            self._attr_supported_color_modes.add(ColorMode.COLOR_TEMP)
-            current_color_mode = ColorMode.COLOR_TEMP # Prioritize Color Temp if both brightness and CT are available
+        # Determine supported color modes
+        supported_modes = set()
+        if self.entity_description.pydreo_colortemp_cmd and \
+           self.entity_description.ha_min_color_temp_kelvin and \
+           self.entity_description.ha_max_color_temp_kelvin:
+            supported_modes.add(ColorMode.COLOR_TEMP)
             self._attr_min_color_temp_kelvin = self.entity_description.ha_min_color_temp_kelvin
             self._attr_max_color_temp_kelvin = self.entity_description.ha_max_color_temp_kelvin
 
-        self._attr_color_mode = current_color_mode
+        # BRIGHTNESS is only added if COLOR_TEMP is not supported,
+        # as COLOR_TEMP implies brightness control.
+        # However, a device might support brightness without color temp.
+        if not supported_modes and self.entity_description.pydreo_brightness_cmd:
+            supported_modes.add(ColorMode.BRIGHTNESS)
+
+        # If no specific color modes (like COLOR_TEMP or BRIGHTNESS) are supported,
+        # then it's an ONOFF light. ONOFF is implied if other modes are set.
+        if not supported_modes: # This means neither COLOR_TEMP nor BRIGHTNESS was added
+            supported_modes.add(ColorMode.ONOFF)
+
+        self._attr_supported_color_modes = supported_modes
+
+        # Set the current color mode based on supported modes
+        if ColorMode.COLOR_TEMP in self._attr_supported_color_modes:
+            self._attr_color_mode = ColorMode.COLOR_TEMP
+        elif ColorMode.BRIGHTNESS in self._attr_supported_color_modes:
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+        else: # Must be ONOFF
+            self._attr_color_mode = ColorMode.ONOFF
 
         _LOGGER.debug("DreoLightHA initialized for %s", self.name)
         _LOGGER.debug("Light control attribute: %s, Supported Color Modes: %s, Current Color Mode: %s",
